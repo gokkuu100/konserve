@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/navigation_reward"
+        android:icon="@drawable/baseline_star_24"
+        android:title="@string/rewardsIcon" />
+
+    <item
+        android:id="@+id/navigation_calendar"
+        android:icon="@drawable/baseline_calendar_month_24"
+        android:title="@string/calendar" />
+
+    <item
+        android:id="@+id/navigation_camera"
+        android:icon="@drawable/baseline_camera_alt_24"
+        android:title="@string/camera" />
+
+    <item
+        android:id="@+id/navigation_location"
+        android:icon="@drawable/baseline_location_pin_24"
+        android:title="@string/search" />
+
+    <item
+        android:id="@+id/navigation_profile"
+        android:icon="@drawable/baseline_person_24"
+        android:title="@string/profile" />
+
+</menu>

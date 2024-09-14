@@ -1,0 +1,40 @@
+<resources>
+    <string name="app_name">Konserve</string>
+    <string name="welcome">Welcome Back</string>
+    <string name="loginText">Login to your account</string>
+    <string name="register">Register</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+    <string name="confirm">Confirm Password</string>
+    <string name="recognize">Recognize Waste</string>
+    <string name="find">Find Center</string>
+    <string name="profile">Profile</string>
+    <string name="logout">Logout</string>
+    <string name="profileIcon">Profile Icon</string>
+    <string name="username">Username</string>
+    <string name="usernameValue">username</string>
+    <string name="emailValue">email@gmail.com</string>
+    <string name="phone">Phone</string>
+    <string name="phoneValue">254796564749</string>
+    <string name="gender">Gender</string>
+    <string name="genderValue">Male/Female</string>
+    <string name="address">Address</string>
+    <string name="addressValue">Nairobi, Kenya</string>
+    <string name="savebtn">Save</string>
+    <string name="getStarted">Get Started</string>
+    <string name="fullname">Prince Hope WK</string>
+    <string name="noaccount">Don\'t have an account? Sign up here</string>
+    <string name="registerText">Register</string>
+    <string name="createNew">Create a new profile</string>
+    <string name="policy">By signing you agree to all our terms of use and privacy notice</string>
+    <string name="redirect">Already have an account? SignIn</string>
+    <string name="editpfp">Edit Profile</string>
+    <string name="camera">Camera</string>
+    <string name="rewardsIcon">Rewards</string>
+    <string name="calendar">Calendar</string>
+    <string name="search">Search</string>
+    <string name="title_activity_maps">MapsActivity</string>
+
+
+</resources>

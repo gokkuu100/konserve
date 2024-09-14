@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "340683757660",
+    "project_id": "konserve-977b1",
+    "storage_bucket": "konserve-977b1.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:340683757660:android:0690245c50e17bc21e6e99",
+        "android_client_info": {
+          "package_name": "com.example.konserve"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjZX4M__RbFZrxYXcIJgXOczv75VJuBRc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
