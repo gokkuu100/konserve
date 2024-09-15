@@ -10,9 +10,13 @@ android {
     namespace = "com.example.konserve"
     compileSdk = 34
 
+    viewBinding {
+        enable = true
+    }
+    
     defaultConfig {
         applicationId = "com.example.konserve"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -42,6 +46,9 @@ android {
 }
 
 dependencies {
+    // Calendar
+    implementation("com.kizitonwose.calendar:view:2.6.0-beta04")
+    implementation(libs.material.calendarview)
 
     // Mapbox location
     implementation("com.mapbox.maps:android:11.6.0")
