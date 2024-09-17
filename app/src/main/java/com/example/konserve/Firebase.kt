@@ -2,6 +2,7 @@ package com.example.konserve
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.type.Date
 
 class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFirestore) {
 
@@ -40,5 +41,37 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
             .addOnFailureListener { e ->
                 onComplete(null, e.message)
             }
+    }
+
+    fun addMemo(userId: String, date: String, memo: String, onComplete: (Boolean, String?) -> Unit) {
+        val memoData = hashMapOf(
+            "userId" to userId,
+            "date" to date,
+            "memo" to memo
+        )
+        firestore.collection("users")
+            .add(memoData)
+            .addOnSuccessListener {
+                onComplete(true, null)
+            }
+            .addOnFailureListener { e -> onComplete(false, e.message) }
+    }
+
+    fun getMemosForDate(userId: String, date: String, onComplete: (List<String>, String?) -> Unit) {
+        firestore.collection("users")
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("date", date)
+            .get()
+            .addOnSuccessListener { result ->
+                val memos = mutableListOf<String>()
+                for (document in result) {
+                    val memo = document.getString("memo")
+                    if (memo != null) {
+                        memos.add(memo)
+                    }
+                }
+                onComplete(memos, null)
+            }
+            .addOnFailureListener { e -> onComplete(emptyList(), e.message) }
     }
 }

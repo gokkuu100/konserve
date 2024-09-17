@@ -43,7 +43,7 @@ class LoginActivity: AppCompatActivity() {
                 else -> {
                     firebaseManager.loginUser(email, password) { success, message ->
                         if (success) {
-                            startActivity(Intent(this, ProfileFragment::class.java))
+                            startActivity(Intent(this, MainActivity::class.java))
                             finish()
                         } else {
                             Toast.makeText(this, message ?: "Authentication failed", Toast.LENGTH_SHORT).show()

@@ -48,12 +48,6 @@ android {
 dependencies {
     // Calendar
     implementation("com.kizitonwose.calendar:view:2.6.0-beta04")
-    implementation(libs.material.calendarview)
-
-    // Mapbox location
-    implementation("com.mapbox.maps:android:11.6.0")
-    implementation("com.mapbox.plugin:maps-plugin-locationcomponent:10.13.0")
-    implementation("com.mapbox.navigation:android:2.9.0")
 
     // Glide for image handling
     implementation(libs.glide)
