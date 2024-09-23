@@ -1,27 +1,26 @@
 package com.example.konserve
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.kizitonwose.calendar.core.CalendarDay
-import com.kizitonwose.calendar.view.CalendarView
-import com.kizitonwose.calendar.view.ViewContainer
-import com.kizitonwose.calendar.view.MonthDayBinder
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.time.temporal.WeekFields
-import java.util.Locale
+import com.applandeo.materialcalendarview.CalendarView
+import com.applandeo.materialcalendarview.CalendarDay
+import com.applandeo.materialcalendarview.listeners.OnCalendarDayClickListener
+import com.google.firebase.firestore.ListenerRegistration
+import java.util.Calendar
+import kotlin.collections.ArrayList
 
 
 class CalendarFragment : Fragment() {
@@ -31,12 +30,13 @@ class CalendarFragment : Fragment() {
     private lateinit var memoAdapter: MemoAdapter
     private lateinit var firebaseManager: FirebaseManager
 
-
     private lateinit var addMemoButton: FloatingActionButton
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
-    private var selectedDate: String? = null
+    private var selectedCalendar: Calendar? = null
+    private val eventDays = ArrayList<CalendarDay>()
+    private var memoListener: ListenerRegistration? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -48,92 +48,102 @@ class CalendarFragment : Fragment() {
         memoRecyclerView = view.findViewById(R.id.memoRecyclerView)
         addMemoButton = view.findViewById(R.id.addMemoButton)
 
-        // Initialize FirebaseManager
         firebaseManager = FirebaseManager(auth, firestore)
-
-        val currentMonth = YearMonth.now()
-        val startMonth = currentMonth.minusMonths(100)
-        val endMonth = currentMonth.plusMonths(100)
-        val firstDayOfWeek = WeekFields.of(Locale.getDefault()).firstDayOfWeek
 
         memoRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         memoAdapter = MemoAdapter()
         memoRecyclerView.adapter = memoAdapter
 
-        // Setup the calendar view
-        calendarView.setup(startMonth, endMonth, firstDayOfWeek)
-        calendarView.scrollToMonth(currentMonth)
-
-        class DayViewContainer(view: View) : ViewContainer(view) {
-            val textView: TextView = view.findViewById(R.id.calendarDayText)
-            var day: CalendarDay? = null
-
-            init {
-                view.setOnClickListener {
-                    day?.let {
-                        selectedDate = it.date.toString()
-                        loadMemosForDate(selectedDate!!)
-                    }
-                }
+        calendarView.setOnCalendarDayClickListener(object : OnCalendarDayClickListener {
+            override fun onClick(calendarDay: CalendarDay) {
+                selectedCalendar = calendarDay.calendar
+                val dateString = "${selectedCalendar!!.get(Calendar.YEAR)}-${selectedCalendar!!.get(Calendar.MONTH) + 1}-${selectedCalendar!!.get(Calendar.DAY_OF_MONTH)}"
+                loadMemosForDate(dateString)
             }
-        }
+        })
 
-        calendarView.dayBinder = object : MonthDayBinder<DayViewContainer> {
-            override fun create(view: View): DayViewContainer {
-                return DayViewContainer(view)
-            }
-
-            override fun bind(container: DayViewContainer, data: CalendarDay) {
-                container.textView.text = data.date.dayOfMonth.toString()
-                container.day = data
-            }
-        }
-
-        // Add memo on button click
         addMemoButton.setOnClickListener {
-            selectedDate?.let {
-                addMemoForDate(it)
+            selectedCalendar?.let {
+                val dateString = "${it.get(Calendar.YEAR)}-${it.get(Calendar.MONTH) + 1}-${it.get(Calendar.DAY_OF_MONTH)}"
+                addMemoForDate(dateString)
             } ?: Toast.makeText(requireContext(), "Please select a date first", Toast.LENGTH_SHORT).show()
         }
 
         return view
     }
 
-    // Load memos for a specific date from Firebase
     private fun loadMemosForDate(date: String) {
         val userId = auth.currentUser?.uid ?: return
-        firebaseManager.getMemosForDate(userId, date) { memoStrings, error ->
+        firebaseManager.getMemosForDate(userId, date) { memoList, error ->
             if (error != null) {
                 Toast.makeText(requireContext(), "Error loading memos: $error", Toast.LENGTH_SHORT).show()
             } else {
-                // Convert List<String> to List<Memo>
-                val memos = memoStrings.map { Memo(it) }
-                memoAdapter.setMemos(memos)
+                memoAdapter.setMemos(memoList)
             }
         }
     }
 
-    // Add a memo for a specific date to Firebase
     private fun addMemoForDate(date: String) {
         val userId = auth.currentUser?.uid ?: return
-        val memoInput = EditText(requireContext()) // Add a dialog or input to get memo
 
-        // Example: Show an input dialog for memo
-        val memoText = memoInput.text.toString()
-        val formatter = DateTimeFormatter.ISO_DATE
-        val dateObj = LocalDate.parse(date, formatter)
+        val dialogView = layoutInflater.inflate(R.layout.dialog_add_memo, null)
+        val memoTitleInput = dialogView.findViewById<EditText>(R.id.memoTitleInput)
+        val memoContentInput = dialogView.findViewById<EditText>(R.id.memoContentInput)
 
-        if (memoText.isNotEmpty()) {
-            firebaseManager.addMemo(userId, date, memoText) { success, error ->
-                if (success) {
-                    Toast.makeText(requireContext(), "Memo added!", Toast.LENGTH_SHORT).show()
-                    loadMemosForDate(date) // Reload memos
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialogView.findViewById<Button>(R.id.saveMemoButton).setOnClickListener {
+            val memoTitle = memoTitleInput.text.toString()
+            val memoContent = memoContentInput.text.toString()
+
+            if (memoTitle.isNotEmpty() && memoContent.isNotEmpty()) {
+                firebaseManager.addMemo(userId, date, memoTitle, memoContent) { success, error ->
+                    if (success) {
+                        Toast.makeText(requireContext(), "Memo added!", Toast.LENGTH_SHORT).show()
+                        loadMemosForDate(date)
+                        selectedCalendar?.let {
+                            val calendarDay = CalendarDay(it)
+                            eventDays.add(calendarDay)
+                            calendarView.setCalendarDays(eventDays)
+                        }
+                    } else {
+                        Log.e("CalendarFragment", "Error adding memo: $error")
+                        Toast.makeText(requireContext(), "Error adding memo: $error", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                dialog.dismiss()
+            } else {
+                Toast.makeText(requireContext(), "Memo title and content cannot be empty", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialogView.findViewById<Button>(R.id.cancelMemoButton).setOnClickListener {
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
+
+    override fun onStart() {
+        super.onStart()
+        val userId = auth.currentUser?.uid ?: return
+        selectedCalendar?.let {
+            val selectedDate = "${it.get(Calendar.YEAR)}-${it.get(Calendar.MONTH) + 1}-${it.get(Calendar.DAY_OF_MONTH)}"
+            memoListener = firebaseManager.getMemosForDate(userId, selectedDate) { memoList, error ->
+                if (error != null) {
+                    Toast.makeText(requireContext(), "Error loading memos: $error", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(requireContext(), "Error adding memo: $error", Toast.LENGTH_SHORT).show()
+                    memoAdapter.setMemos(memoList)
                 }
             }
-        } else {
-            Toast.makeText(requireContext(), "Memo cannot be empty", Toast.LENGTH_SHORT).show()
-        }
+        } ?: Toast.makeText(requireContext(), "Please select a date first", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        memoListener?.remove()
     }
 }

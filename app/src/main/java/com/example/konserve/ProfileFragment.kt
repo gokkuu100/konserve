@@ -37,7 +37,6 @@ class ProfileFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Inflate the layout for this fragment
         return inflater.inflate(R.layout.activity_profile, container, false)
     }
 
@@ -108,7 +107,7 @@ class ProfileFragment : Fragment() {
             if (error != null) {
                 Toast.makeText(requireContext(), "Error loading data: $error", Toast.LENGTH_SHORT).show()
             } else if (data != null) {
-                userNameEditText.setText(data["username"] as? String ?: "")
+                userNameEditText.setText(data["fullName"] as? String ?: "")
                 emailEditText.setText(data["email"] as? String ?: "")
                 phoneEditText.setText(data["phone"] as? String ?: "")
                 genderEditText.setText(data["gender"] as? String ?: "")
@@ -132,7 +131,7 @@ class ProfileFragment : Fragment() {
 
     private fun saveUserData(userId: String) {
         val updatedData = hashMapOf(
-            "username" to userNameEditText.text.toString(),
+            "fullName" to userNameEditText.text.toString(),
             "email" to emailEditText.text.toString(),
             "phone" to phoneEditText.text.toString(),
             "gender" to genderEditText.text.toString(),

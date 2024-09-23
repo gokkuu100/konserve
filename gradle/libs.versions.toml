@@ -21,7 +21,6 @@ converter-gson = "2.9.0"
 glide = "4.14.2"
 kapt = "1.9.0"
 googleAndroidLibrariesMapsplatformSecretsGradlePlugin = "2.0.1"
-kizitonwoseCalendar = "2.6"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,7 +42,8 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "converter-gson" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version = "4.14.2"  }
 glide-kapt = { group = "com.github.bumptech.glide", name = "compiler", version = "4.14.2"  }
-kizitonwose-calendarview = { group = "com.kizitonwose.calendar", name = "compose-multiplatform", version.ref = "kizitonwoseCalendar" }
+
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

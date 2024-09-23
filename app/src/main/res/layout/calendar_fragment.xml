@@ -1,50 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/blue_300"
+    android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <com.kizitonwose.calendar.view.CalendarView
+    <com.applandeo.materialcalendarview.CalendarView
         android:id="@+id/calendarView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/white"
-        app:cv_dayViewResource="@layout/calendar_day_view"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"/>
+        android:background="@color/green_600"
+        app:headerColor="@color/green_600"
+        app:daysLabelsColor="@color/black"
+        app:highlightedDaysLabelsColor="@color/green_600"
+        app:todayLabelColor="@color/green_600"
+        app:layout_constraintBottom_toTopOf="@id/memoHeading"
+        app:selectionColor="@color/pink_500" />
 
     <TextView
-        android:id="@+id/calendarDayText"
+        android:id="@+id/memoHeading"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="@string/memoHeading"
         android:textColor="@color/black"
+        android:fontFamily="@font/roboto_blackitalic"
         android:textSize="16sp"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintTop_toBottomOf="@id/calendarView" />
 
-    <!-- Memo List for the selected day -->
+    <View
+        android:id="@+id/underline"
+        android:layout_width="0dp"
+        android:layout_height="2dp"
+        android:background="@color/black"
+        app:layout_constraintTop_toBottomOf="@id/memoHeading"
+        app:layout_constraintStart_toStartOf="@id/memoHeading"
+        app:layout_constraintEnd_toEndOf="@id/memoHeading"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Memo List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/memoRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/calendarView"
-        app:layout_constraintBottom_toBottomOf="parent"
-        android:padding="16dp"
-        android:background="@color/green_600"/>
+        app:layout_constraintTop_toBottomOf="@id/underline"
+        app:layout_constraintBottom_toTopOf="@id/addMemoButton"
+        android:padding="0dp"
+        android:background="@color/white" />
 
+    <!-- Floating Action Button for Adding Memos -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addMemoButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
+        android:layout_margin="0dp"
         android:contentDescription="@string/calendar"
         android:src="@android:drawable/ic_input_add"
+        android:tint="@android:color/white"
+        android:backgroundTint="@color/green_600"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

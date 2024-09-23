@@ -22,6 +22,7 @@ class RegisterActivity : AppCompatActivity() {
 
         firebaseManager = FirebaseManager(auth, firestore)
 
+        val fullNameEditText = findViewById<TextInputEditText>(R.id.fullNameEditText)
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
         val confirmPasswordEditText = findViewById<TextInputEditText>(R.id.confirmPasswordEditText)
@@ -30,12 +31,17 @@ class RegisterActivity : AppCompatActivity() {
 
 
         registerButton.setOnClickListener {
+            val fullName = fullNameEditText.text.toString()
             val email = emailEditText.text.toString()
             val password = passwordEditText.text.toString()
             val confirmPassword = confirmPasswordEditText.text.toString()
 
             // Validate input fields
             when {
+                fullName.isEmpty() -> {
+                    fullNameEditText.error = "Full name is required"
+                    fullNameEditText.requestFocus()
+                }
                 email.isEmpty() -> {
                     emailEditText.error = "Email is required"
                     emailEditText.requestFocus()
@@ -53,7 +59,7 @@ class RegisterActivity : AppCompatActivity() {
                     confirmPasswordEditText.requestFocus()
                 }
                 else -> {
-                    firebaseManager.registerUser(email, password) { success, message ->
+                    firebaseManager.registerUser(email, password, fullName) { success, message ->
                         if (success) {
                             startActivity(Intent(this, LoginActivity::class.java))
                             finish()

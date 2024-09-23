@@ -47,7 +47,8 @@ android {
 
 dependencies {
     // Calendar
-    implementation("com.kizitonwose.calendar:view:2.6.0-beta04")
+    implementation ("com.applandeo:material-calendar-view:1.9.2")
+    implementation("com.kizitonwose.calendar:view:2.5.4")
 
     // Glide for image handling
     implementation(libs.glide)

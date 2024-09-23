@@ -1,16 +1,39 @@
 package com.example.konserve
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.FirebaseException
 import com.google.type.Date
 
 class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFirestore) {
 
-    fun registerUser(email: String, password: String, onComplete: (Boolean, String?) -> Unit) {
+    fun registerUser(email: String, password: String, fullName:String, onComplete: (Boolean, String?) -> Unit) {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    onComplete(true, null)
+                    val userId = auth.currentUser?.uid
+                    if (userId != null) {
+                        val userData = hashMapOf(
+                            "userId" to userId,
+                            "email" to email,
+                            "fullName" to fullName,
+                            "created_at" to System.currentTimeMillis()
+                        )
+                        firestore.collection("users").document(userId)
+                            .set(userData)
+                            .addOnSuccessListener {
+                                onComplete(true, null)
+                            }
+                            .addOnFailureListener { e ->
+                                onComplete(false, e.localizedMessage)
+                            }
+                    } else {
+                        onComplete(false, "User ID is null")
+                    }
                 } else {
                     onComplete(false, task.exception?.message ?: "Registration failed")
                 }
@@ -43,35 +66,52 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
             }
     }
 
-    fun addMemo(userId: String, date: String, memo: String, onComplete: (Boolean, String?) -> Unit) {
+    fun addMemo(userId: String, date: String, title: String, content: String, callback: (Boolean, String?) -> Unit) {
         val memoData = hashMapOf(
-            "userId" to userId,
-            "date" to date,
-            "memo" to memo
+            "title" to title,
+            "content" to content,
+            "timestamp" to System.currentTimeMillis()
         )
+
         firestore.collection("users")
+            .document(userId)
+            .collection("memos")
+            .document(date)
+            .collection("memoList")
             .add(memoData)
             .addOnSuccessListener {
-                onComplete(true, null)
+                Log.d("Memo", "Memo added successfully!")
+                callback(true, null)
             }
-            .addOnFailureListener { e -> onComplete(false, e.message) }
+            .addOnFailureListener { e ->
+                callback(false, e.localizedMessage)
+            }
     }
 
-    fun getMemosForDate(userId: String, date: String, onComplete: (List<String>, String?) -> Unit) {
-        firestore.collection("users")
-            .whereEqualTo("userId", userId)
-            .whereEqualTo("date", date)
-            .get()
-            .addOnSuccessListener { result ->
-                val memos = mutableListOf<String>()
-                for (document in result) {
-                    val memo = document.getString("memo")
-                    if (memo != null) {
-                        memos.add(memo)
-                    }
+    fun getMemosForDate(userId: String, date: String, callback: (List<Memo>, String?) -> Unit): ListenerRegistration {
+        return firestore.collection("users")
+            .document(userId)
+            .collection("memos")
+            .document(date)
+            .collection("memoList")
+            .orderBy("timestamp")
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    callback(emptyList(), error.localizedMessage)
+                    return@addSnapshotListener
                 }
-                onComplete(memos, null)
+
+                if (snapshots != null) {
+                    val memoList = snapshots.documents.map { document ->
+                        val title = document.getString("title") ?: ""
+                        val content = document.getString("content") ?: ""
+                        val timestamp = document.getLong("timestamp") ?: 0L
+                        Memo(title, content, timestamp)
+                    }
+                    callback(memoList, null)
+                } else {
+                    callback(emptyList(), null)
+                }
             }
-            .addOnFailureListener { e -> onComplete(emptyList(), e.message) }
     }
 }
