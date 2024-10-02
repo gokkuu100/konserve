@@ -5,19 +5,6 @@
     android:background="@drawable/rounded_dialog_background"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <ImageView
-        android:id="@+id/closeButton"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:src="@drawable/baseline_close_24"
-        android:contentDescription="Close"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:layout_marginEnd="16dp"
-        android:layout_marginTop="16dp"
-        android:clickable="true"
-        android:focusable="true" />
-
     <TextView
         android:id="@+id/dialogTitle"
         android:layout_width="wrap_content"
@@ -134,6 +121,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginStart="10dp"
             android:background="@drawable/button_green_background"
             android:text="Save"
             android:layout_marginEnd="8dp"
@@ -144,6 +132,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginEnd="10dp"
             android:background="@drawable/button_white_background"
             android:text="Cancel"
             android:textColor="@android:color/white"

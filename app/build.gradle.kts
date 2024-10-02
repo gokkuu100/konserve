@@ -46,6 +46,11 @@ android {
 }
 
 dependencies {
+
+    // Mapbox
+    implementation("com.mapbox.maps:android:11.6.1")
+    implementation ("com.mapbox.mapboxsdk:mapbox-sdk-services:5.7.0")
+
     // Calendar
     implementation ("com.applandeo:material-calendar-view:1.9.2")
     implementation("com.kizitonwose.calendar:view:2.5.4")
