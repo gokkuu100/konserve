@@ -46,6 +46,16 @@ android {
 }
 
 dependencies {
+    // CameraX
+    implementation ("androidx.camera:camera-camera2:1.1.0")
+    implementation ("androidx.camera:camera-lifecycle:1.1.0")
+    implementation ("androidx.camera:camera-view:1.1.0")
+
+    // Tensorflow
+    implementation ("org.tensorflow:tensorflow-lite:2.9.0")
+    implementation ("org.tensorflow:tensorflow-lite-gpu:2.9.0")
+    implementation ("org.tensorflow:tensorflow-lite-support:0.3.1")
+
 
     // Mapbox
     implementation("com.mapbox.maps:android:11.6.1")
