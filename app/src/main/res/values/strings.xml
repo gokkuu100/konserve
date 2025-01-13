@@ -38,6 +38,8 @@
     <string name="title_activity_maps">MapsActivity</string>
     <string name="cameradesc">Camera Description</string>
     <string name="capture">capture</string>
+    <string name="capturedImage">Captured Image</string>
+    <string name="result">Results</string>
 
 
 </resources>

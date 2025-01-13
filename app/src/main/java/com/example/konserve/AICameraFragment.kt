@@ -3,29 +3,32 @@ package com.example.konserve
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.LifecycleOwner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
-import android.content.res.AssetFileDescriptor
-import android.graphics.Matrix
-import androidx.camera.view.PreviewView
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 class AICameraFragment : Fragment() {
 
@@ -33,25 +36,20 @@ class AICameraFragment : Fragment() {
     private lateinit var resultTextView: TextView
     private lateinit var previewView: PreviewView
     private lateinit var captureButton: Button
-    private lateinit var capturedImageView: ImageView
-    private lateinit var imageCapture: ImageCapture
-    private lateinit var cameraExecutor: ExecutorService
+    private lateinit var loadingSpinner: ProgressBar
 
     private val classNames = listOf(
-        "aerosol_cans",
-        "aluminum_food_cans",
-        "aluminum_soda_cans",
-        "cardboard_boxes",
-        "cardboard_packaging",
-        "clothing",
-        "coffee_grounds",
-        "disposable_plastic_cutlery"
+        "aerosol_cans", "aluminum_food_cans", "aluminum_soda_cans", "cardboard_boxes", "cardboard_packaging", "clothing",
+        "coffee_grounds", "disposable_plastic_cutlery", "eggshells", "food_waste", "glass_beverage_bottles", "glass_cosmetic_containers",
+        "glass_food_jars", "magazines", "newspaper", "office_paper", "paper_cups", "plastic_cup_lids",
+        "plastic_detergent_bottles", "plastic_food_containers", "plastic_shopping_bags", "plastic_soda_bottles", "plastic_straws", "plastic_trash_bags",
+        "plastic_water_bottles", "shoes", "steel_food_cans", "styrofoam_cups", "styrofoam_food_containers", "tea_bags",
+
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tflite = Interpreter(loadModelFile("waste_classification_model.tflite"))
-        cameraExecutor = Executors.newSingleThreadExecutor()
+        tflite = Interpreter(loadModelFile("model_optimized.tflite"))
     }
 
     override fun onCreateView(
@@ -59,27 +57,25 @@ class AICameraFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.camera_fragment, container, false)
 
-        resultTextView = view.findViewById(R.id.resultTextView)
         previewView = view.findViewById(R.id.previewView)
         captureButton = view.findViewById(R.id.captureButton)
-        capturedImageView = view.findViewById(R.id.capturedImageView)
+        loadingSpinner = view.findViewById(R.id.loadingSpinner)
+        resultTextView = view.findViewById(R.id.resultTextView)
 
-        captureButton.setOnClickListener { takePicture() }
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
-            requestPermissions(REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+        captureButton.setOnClickListener {
+            takePicture()
         }
 
+        startCamera()
         return view
     }
 
     private fun loadModelFile(modelFile: String): MappedByteBuffer {
-        val fileDescriptor: AssetFileDescriptor = requireActivity().assets.openFd(modelFile)
-        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
-        val fileChannel: FileChannel = inputStream.channel
-        val startOffset = fileDescriptor.startOffset
-        val declaredLength = fileDescriptor.declaredLength
+        val assetFileDescriptor = requireActivity().assets.openFd(modelFile)
+        val inputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        val startOffset = assetFileDescriptor.startOffset
+        val declaredLength = assetFileDescriptor.declaredLength
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
@@ -87,94 +83,81 @@ class AICameraFragment : Fragment() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
         cameraProviderFuture.addListener({
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
-            imageCapture = ImageCapture.Builder().build()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview, imageCapture)
+            cameraProvider.bindToLifecycle(this, cameraSelector, preview)
         }, ContextCompat.getMainExecutor(requireContext()))
     }
 
     private fun takePicture() {
-        val imageCapture = imageCapture ?: return
+        captureButton.isEnabled = false
+        loadingSpinner.visibility = View.VISIBLE
 
+        // Capture the image
+        val imageCapture = ImageCapture.Builder().build()
         imageCapture.takePicture(ContextCompat.getMainExecutor(requireContext()), object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
                 val bitmap = imageProxy.toBitmap()
-                classifyImage(bitmap)
                 imageProxy.close()
+
+                GlobalScope.launch(Dispatchers.Main) {
+                    classifyImage(bitmap)
+                }
             }
 
             override fun onError(exception: ImageCaptureException) {
                 Log.e("AICameraFragment", "Photo capture failed: ${exception.message}", exception)
+                captureButton.isEnabled = true
+                loadingSpinner.visibility = View.GONE
             }
         })
     }
 
-    private fun classifyImage(bitmap: Bitmap) {
-        val input = preprocessImage(bitmap)
-        val output = Array(1) { FloatArray(classNames.size) }
-        tflite.run(input, output)
+    private suspend fun classifyImage(bitmap: Bitmap) {
+        withContext(Dispatchers.Default) {
+            val input = preprocessImage(bitmap)
+            val output = Array(1) { FloatArray(classNames.size) } // Model output is a single integer
 
-        val maxIndex = output[0].indices.maxByOrNull { output[0][it] } ?: -1
-        val confidence = output[0][maxIndex]
+            tflite.run(input, output)
+            val classIndex = output[0].indices.maxByOrNull { output[0][it] } ?: -1
 
-        resultTextView.text = "Class: ${classNames[maxIndex]}, Confidence: ${confidence * 100}%"
-        capturedImageView.setImageBitmap(bitmap)
-    }
-
-    private fun preprocessImage(bitmap: Bitmap): FloatArray {
-        val inputSize = 224
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
-        val inputArray = FloatArray(inputSize * inputSize * 3)
-
-        for (i in 0 until inputSize) {
-            for (j in 0 until inputSize) {
-                val pixelValue = resizedBitmap.getPixel(j, i)
-                inputArray[(i * inputSize + j) * 3] = ((pixelValue shr 16 and 0xFF) / 255.0f)
-                inputArray[(i * inputSize + j) * 3 + 1] = ((pixelValue shr 8 and 0xFF) / 255.0f)
-                inputArray[(i * inputSize + j) * 3 + 2] = ((pixelValue and 0xFF) / 255.0f)
+            withContext(Dispatchers.Main) {
+                displayResult(classNames[classIndex])
             }
         }
-        return inputArray
     }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
+    private fun displayResult(className: String) {
+        loadingSpinner.visibility = View.GONE
+        resultTextView.visibility = View.VISIBLE
+        resultTextView.text = "Class: $className"
+        captureButton.isEnabled = true
     }
 
-    companion object {
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
-        private const val REQUEST_CODE_PERMISSIONS = 10
+    private fun preprocessImage(bitmap: Bitmap): ByteBuffer {
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 224, 224, true)
+        val byteBuffer = ByteBuffer.allocateDirect(4 * 224 * 224 * 3) // Float buffer for RGB
+        byteBuffer.order(ByteOrder.nativeOrder())
+
+        for (y in 0 until 224) {
+            for (x in 0 until 224) {
+                val pixel = scaledBitmap.getPixel(x, y)
+
+                // Normalize pixel values to [0, 1]
+                byteBuffer.putFloat((pixel shr 16 and 0xFF) / 255f)
+                byteBuffer.putFloat((pixel shr 8 and 0xFF) / 255f)
+                byteBuffer.putFloat((pixel and 0xFF) / 255f)
+            }
+        }
+        return byteBuffer
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
+    private fun ImageProxy.toBitmap(): Bitmap {
+        val buffer = planes[0].buffer
+        val bytes = ByteArray(buffer.capacity())
+        buffer.get(bytes)
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
     }
-}
-
-fun ImageProxy.toBitmap(): Bitmap {
-    val yBuffer = planes[0].buffer
-    val uBuffer = planes[1].buffer
-    val vBuffer = planes[2].buffer
-
-    val ySize = yBuffer.remaining()
-    val uSize = uBuffer.remaining()
-    val vSize = vBuffer.remaining()
-
-    val nv21 = ByteArray(ySize + uSize + vSize)
-
-    yBuffer.get(nv21, 0, ySize)
-    vBuffer.get(nv21, ySize, vSize)
-    uBuffer.get(nv21, ySize + vSize, uSize)
-
-    val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
-    val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(Rect(0, 0, width, height), 100, out)
-    val byteArray = out.toByteArray()
-    return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
 }

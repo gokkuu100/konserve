@@ -52,9 +52,10 @@ dependencies {
     implementation ("androidx.camera:camera-view:1.1.0")
 
     // Tensorflow
-    implementation ("org.tensorflow:tensorflow-lite:2.9.0")
-    implementation ("org.tensorflow:tensorflow-lite-gpu:2.9.0")
-    implementation ("org.tensorflow:tensorflow-lite-support:0.3.1")
+    implementation ("org.tensorflow:tensorflow-lite:2.16.1")
+    implementation ("org.tensorflow:tensorflow-lite-gpu:2.12.0")
+    implementation ("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation ("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
 
 
     // Mapbox
