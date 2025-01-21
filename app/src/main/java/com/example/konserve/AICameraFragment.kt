@@ -49,7 +49,7 @@ class AICameraFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tflite = Interpreter(loadModelFile("model_optimized.tflite"))
+        tflite = Interpreter(loadModelFile(""))
     }
 
     override fun onCreateView(

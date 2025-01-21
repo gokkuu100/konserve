@@ -12,9 +12,9 @@ import java.util.Date
 import java.util.Locale
 
 data class Message(
-    val username: String,
-    val text: String,
-    val timestamp: Long
+    val username: String = "",
+    val text: String = "",
+    val timestamp: Long = 0L
 )
 
 class ChatAdapter : ListAdapter<Message, ChatAdapter.ChatViewHolder>(DiffCallback) {

@@ -7,6 +7,7 @@ import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.FirebaseException
+import com.google.firebase.firestore.Query
 import com.google.type.Date
 
 class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFirestore) {
@@ -112,6 +113,38 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
                 } else {
                     callback(emptyList(), null)
                 }
+            }
+    }
+
+    fun sendMessage(message: Map<String, Any>, callback: (Boolean, Exception?) -> Unit) {
+        firestore.collection("messages").add(message)
+            .addOnSuccessListener {
+                callback(true, null)
+            }
+            .addOnFailureListener { exception ->
+                callback(false, exception)
+            }
+    }
+
+    fun getMessages(callback: (List<Message>?, Exception?) -> Unit) {
+        firestore.collection("messages")
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                if (querySnapshot != null && !querySnapshot.isEmpty) {
+                    val messages = querySnapshot.documents.mapNotNull { document ->
+                        val username = document.getString("username") ?: "Unknown"
+                        val text = document.getString("text") ?: ""
+                        val timestamp = document.getLong("timestamp") ?: 0L
+                        Message(username, text, timestamp)
+                    }
+                    callback(messages, null)
+                } else {
+                    callback(emptyList(), null)
+                }
+            }
+            .addOnFailureListener { exception ->
+                callback(null, exception)
             }
     }
 }

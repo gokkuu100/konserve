@@ -16,7 +16,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:padding="8dp" />
 
-    <!-- Container for message input and send button -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/messageContainer"
         android:layout_width="0dp"
@@ -38,8 +37,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/sendButton"
-            app:layout_constraintHorizontalBias="0" />
+            app:layout_constraintEnd_toStartOf="@id/sendButton"/>
 
         <!-- Send button -->
         <Button

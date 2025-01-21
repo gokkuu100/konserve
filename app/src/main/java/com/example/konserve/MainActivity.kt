@@ -17,7 +17,7 @@ class MainActivity : AppCompatActivity() {
         bottomNavigationView.setOnItemSelectedListener { item ->
             var selectedFragment: Fragment? = null
             when (item.itemId) {
-                R.id.navigation_reward -> selectedFragment = RewardFragment()
+                R.id.navigation_chat -> selectedFragment = ChatFragment()
                 R.id.navigation_calendar -> selectedFragment = CalendarFragment()
                 R.id.navigation_location -> selectedFragment = LocationFragment()
                 R.id.navigation_profile -> selectedFragment = ProfileFragment()
