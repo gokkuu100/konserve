@@ -22,7 +22,8 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
                             "userId" to userId,
                             "email" to email,
                             "fullName" to fullName,
-                            "created_at" to System.currentTimeMillis()
+                            "created_at" to System.currentTimeMillis(),
+                            "reward_points" to 0
                         )
                         firestore.collection("users").document(userId)
                             .set(userData)
@@ -145,6 +146,59 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
             }
             .addOnFailureListener { exception ->
                 callback(null, exception)
+            }
+    }
+
+
+    fun getUserRewardPoints(userId: String, onComplete: (Int?, String?) -> Unit) {
+        firestore.collection("users").document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val points = document.getLong("rewardPoints")?.toInt() ?: 0
+                    onComplete(points, null)
+                } else {
+                    onComplete(0, "No user data found")
+                }
+            }
+            .addOnFailureListener { e ->
+                onComplete(null, e.localizedMessage)
+            }
+    }
+
+    fun redeemCode(userId: String, code: String, onComplete: (Boolean, String?) -> Unit) {
+        val codeRef = firestore.collection("reward_codes").document(code)
+
+        codeRef.get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val pointsToAdd = document.getLong("points")?.toInt() ?: 0
+
+                    if (pointsToAdd > 0) {
+                        val userRef = firestore.collection("users").document(userId)
+
+                        firestore.runTransaction { transaction ->
+                            val userSnapshot = transaction.get(userRef)
+                            val currentPoints = userSnapshot.getLong("rewardPoints")?.toInt() ?: 0
+                            val newPoints = currentPoints + pointsToAdd
+
+                            transaction.update(userRef, "rewardPoints", newPoints)
+                        }
+                            .addOnSuccessListener {
+                                onComplete(true, "Successfully redeemed $pointsToAdd points!")
+                            }
+                            .addOnFailureListener { e ->
+                                onComplete(false, e.localizedMessage)
+                            }
+                    } else {
+                        onComplete(false, "Invalid points for this code")
+                    }
+                } else {
+                    onComplete(false, "Invalid code")
+                }
+            }
+            .addOnFailureListener { e ->
+                onComplete(false, e.localizedMessage)
             }
     }
 }
