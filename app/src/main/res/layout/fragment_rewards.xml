@@ -29,10 +29,10 @@
 
             <!-- Points Display -->
             <TextView
-                android:id="@+id/pointsTextView"
+                android:id="@+id/loyaltyView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Loyalty Points"
+                android:text="600 points"
                 android:textSize="32sp"
                 android:textStyle="bold"
                 android:textColor="@android:color/black"
@@ -46,7 +46,7 @@
                 android:text="You are a hero "
                 android:textSize="14sp"
                 android:textColor="@android:color/black"
-                app:layout_constraintTop_toBottomOf="@id/pointsTextView"
+                app:layout_constraintTop_toBottomOf="@id/loyaltyView"
                 app:layout_constraintStart_toStartOf="parent"
                 android:layout_marginTop="4dp"/>
 
@@ -78,7 +78,7 @@
 
     <!-- Invite Code Section -->
     <TextView
-        android:id="@+id/code"
+        android:id="@+id/codeTxtView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Enter your code here"
@@ -89,14 +89,26 @@
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="24dp"/>
 
+    <EditText
+        android:id="@+id/codeEditText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="Enter reward code"
+        android:padding="12dp"
+        android:background="@drawable/edittext_background"
+        app:layout_constraintTop_toBottomOf="@id/codeTxtView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
+
     <TextView
         android:id="@+id/inviteDetails"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="When a friend uses your code, you will get 3,000 points"
+        android:text="Recyle and earn points for your loyalty"
         android:textSize="14sp"
         android:textColor="@android:color/darker_gray"
-        app:layout_constraintTop_toBottomOf="@id/code"
+        app:layout_constraintTop_toBottomOf="@id/codeEditText"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="8dp"/>
 
@@ -116,7 +128,7 @@
 
     <!-- Recent Activity Section -->
     <TextView
-        android:id="@+id/recentActivityLabel"
+        android:id="@+id/pointsTxtView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Recent Activity"
@@ -133,7 +145,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@android:color/white"
-        app:layout_constraintTop_toBottomOf="@id/recentActivityLabel"
+        app:layout_constraintTop_toBottomOf="@id/pointsTxtView"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"

@@ -1,5 +1,6 @@
 package com.example.konserve
 
+import RedeemedCodesAdapter
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,6 +15,8 @@ import com.google.firebase.Timestamp
 
 class RewardFragment : Fragment() {
 
+    private lateinit var userNameTextView: TextView
+    private lateinit var loyaltyPointsTextView: TextView
     private lateinit var pointsTextView: TextView
     private lateinit var codeEditText: EditText
     private lateinit var submitButton: Button
@@ -22,7 +25,7 @@ class RewardFragment : Fragment() {
     private lateinit var auth: FirebaseAuth
     private lateinit var redeemedCodesAdapter: RedeemedCodesAdapter
     private var userPoints: Int = 0
-    private val redeemedCodesList = mutableListOf<String>()
+    private val redeemedCodesList = mutableListOf<Pair<String, Int>>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -34,10 +37,12 @@ class RewardFragment : Fragment() {
         firestore = FirebaseFirestore.getInstance()
 
         // Initialize UI components
-        pointsTextView = view.findViewById(R.id.pointsTextView)
+        userNameTextView = view.findViewById(R.id.userName)
+        loyaltyPointsTextView = view.findViewById(R.id.loyaltyView)
+        pointsTextView = view.findViewById(R.id.pointsTxtView)
         codeEditText = view.findViewById(R.id.codeEditText)
-        submitButton = view.findViewById(R.id.submitButton)
-        redeemedCodesRecyclerView = view.findViewById(R.id.redeemedCodesRecyclerView)
+        submitButton = view.findViewById(R.id.redeemBtn)
+        redeemedCodesRecyclerView = view.findViewById(R.id.recentActivityRecyclerView)
 
         // Set up RecyclerView
         redeemedCodesAdapter = RedeemedCodesAdapter(redeemedCodesList)
@@ -111,6 +116,22 @@ class RewardFragment : Fragment() {
             }
     }
 
+    private fun loadUserData() {
+        val userId = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val name = document.getString("name") ?: "User"
+                    userPoints = document.getLong("points")?.toInt() ?: 0
+
+                    // Update UI
+                    userNameTextView.text = name
+                    loyaltyPointsTextView.text = "$userPoints pts"
+                }
+            }
+    }
+
     private fun updateUserPoints(points: Int, code: String) {
         val userId = auth.currentUser?.uid ?: return
         val userRef = firestore.collection("users").document(userId)
@@ -134,8 +155,10 @@ class RewardFragment : Fragment() {
             userPoints = updatedPoints.toInt()
             pointsTextView.text = "$userPoints pts"
             codeEditText.text.clear()
-            redeemedCodesList.add("$code - $points pts")
-            redeemedCodesAdapter.notifyDataSetChanged()
+
+            // Update RecyclerView dynamically
+            redeemedCodesList.add(Pair(code, points))
+            redeemedCodesAdapter.updateData(redeemedCodesList)
         }
     }
 
@@ -148,9 +171,9 @@ class RewardFragment : Fragment() {
                 for (document in documents) {
                     val code = document.getString("code") ?: ""
                     val points = document.getLong("points")?.toInt() ?: 0
-                    redeemedCodesList.add("$code - $points pts")
+                    redeemedCodesList.add(Pair(code, points))
                 }
-                redeemedCodesAdapter.notifyDataSetChanged()
+                redeemedCodesAdapter.updateData(redeemedCodesList)
             }
     }
 }
