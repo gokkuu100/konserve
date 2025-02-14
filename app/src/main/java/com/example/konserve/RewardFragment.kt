@@ -17,7 +17,6 @@ class RewardFragment : Fragment() {
 
     private lateinit var userNameTextView: TextView
     private lateinit var loyaltyPointsTextView: TextView
-    private lateinit var pointsTextView: TextView
     private lateinit var codeEditText: EditText
     private lateinit var submitButton: Button
     private lateinit var redeemedCodesRecyclerView: RecyclerView
@@ -36,10 +35,11 @@ class RewardFragment : Fragment() {
         auth = FirebaseAuth.getInstance()
         firestore = FirebaseFirestore.getInstance()
 
+        loadUserData()
+
         // Initialize UI components
         userNameTextView = view.findViewById(R.id.userName)
         loyaltyPointsTextView = view.findViewById(R.id.loyaltyView)
-        pointsTextView = view.findViewById(R.id.pointsTxtView)
         codeEditText = view.findViewById(R.id.codeEditText)
         submitButton = view.findViewById(R.id.redeemBtn)
         redeemedCodesRecyclerView = view.findViewById(R.id.recentActivityRecyclerView)
@@ -66,13 +66,26 @@ class RewardFragment : Fragment() {
         return view
     }
 
+    private fun loadTotalLoyaltyPoints() {
+        val userId = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(userId)
+            .collection("redeemed_codes").get()
+            .addOnSuccessListener { documents ->
+                var totalPoints = 0
+                for (document in documents) {
+                    totalPoints += document.getLong("points")?.toInt() ?: 0
+                }
+                loyaltyPointsTextView.text = "$totalPoints points"
+            }
+    }
+
     private fun loadUserPoints() {
         val userId = auth.currentUser?.uid ?: return
         firestore.collection("users").document(userId)
             .addSnapshotListener { document, _ ->
                 if (document != null && document.exists()) {
                     userPoints = document.getLong("points")?.toInt() ?: 0
-                    pointsTextView.text = "$userPoints pts"
+
                 }
             }
     }
@@ -122,12 +135,14 @@ class RewardFragment : Fragment() {
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
-                    val name = document.getString("name") ?: "User"
+                    val name = document.getString("fullName") ?: "User"
                     userPoints = document.getLong("points")?.toInt() ?: 0
 
                     // Update UI
                     userNameTextView.text = name
-                    loyaltyPointsTextView.text = "$userPoints pts"
+                    loyaltyPointsTextView.text = "$userPoints points"
+
+                    loadTotalLoyaltyPoints()
                 }
             }
     }
@@ -153,12 +168,13 @@ class RewardFragment : Fragment() {
             newTotalPoints
         }.addOnSuccessListener { updatedPoints ->
             userPoints = updatedPoints.toInt()
-            pointsTextView.text = "$userPoints pts"
             codeEditText.text.clear()
 
             // Update RecyclerView dynamically
             redeemedCodesList.add(Pair(code, points))
             redeemedCodesAdapter.updateData(redeemedCodesList)
+
+            loadTotalLoyaltyPoints()
         }
     }
 
@@ -167,13 +183,13 @@ class RewardFragment : Fragment() {
         firestore.collection("users").document(userId)
             .collection("redeemed_codes").get()
             .addOnSuccessListener { documents ->
-                redeemedCodesList.clear()
+                val tempList = mutableListOf<Pair<String, Int>>() // Create temp list to avoid modifying original
                 for (document in documents) {
                     val code = document.getString("code") ?: ""
                     val points = document.getLong("points")?.toInt() ?: 0
-                    redeemedCodesList.add(Pair(code, points))
+                    tempList.add(Pair(code, points))
                 }
-                redeemedCodesAdapter.updateData(redeemedCodesList)
+                redeemedCodesAdapter.updateData(tempList) // Use tempList to update adapter
             }
     }
 }

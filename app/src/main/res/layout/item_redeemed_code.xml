@@ -57,7 +57,7 @@
 
         <!-- Reward Firm -->
         <TextView
-            android:id="@+id/rewardPlace"
+            android:id="@+id/rewardCode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="XXXXXXXX"

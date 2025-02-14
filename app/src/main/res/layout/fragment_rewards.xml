@@ -21,6 +21,13 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <ImageView
+            android:id="@+id/backgroundImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@drawable/plants1"
+            android:alpha="0.9"/>
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
@@ -35,7 +42,7 @@
                 android:text="600 points"
                 android:textSize="32sp"
                 android:textStyle="bold"
-                android:textColor="@android:color/black"
+                android:textColor="@android:color/white"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintStart_toStartOf="parent"/>
 
@@ -45,7 +52,7 @@
                 android:layout_height="wrap_content"
                 android:text="You are a hero "
                 android:textSize="14sp"
-                android:textColor="@android:color/black"
+                android:textColor="@android:color/white"
                 app:layout_constraintTop_toBottomOf="@id/loyaltyView"
                 app:layout_constraintStart_toStartOf="parent"
                 android:layout_marginTop="4dp"/>
@@ -57,7 +64,7 @@
                 android:layout_height="wrap_content"
                 android:text="Maimuna Alisha"
                 android:textSize="16sp"
-                android:textColor="@android:color/black"
+                android:textColor="@android:color/white"
                 android:textStyle="bold"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"/>
@@ -68,7 +75,7 @@
                 android:layout_height="wrap_content"
                 android:text="GREEN 2035"
                 android:textSize="16sp"
-                android:textColor="@android:color/black"
+                android:textColor="@android:color/white"
                 android:textStyle="bold"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"/>
