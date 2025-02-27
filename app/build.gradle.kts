@@ -13,7 +13,7 @@ android {
     viewBinding {
         enable = true
     }
-    
+
     defaultConfig {
         applicationId = "com.example.konserve"
         minSdk = 26
@@ -39,11 +39,13 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs += listOf("-Xskip-prerelease-check")
     }
     buildFeatures {
         viewBinding = true
     }
 }
+
 
 dependencies {
     //Google
@@ -82,7 +84,7 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.storage.ktx)
-    
+
     // Google Play Services
     implementation(libs.play.services.maps)
 
