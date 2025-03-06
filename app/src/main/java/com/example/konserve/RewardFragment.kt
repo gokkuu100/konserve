@@ -1,6 +1,6 @@
 package com.example.konserve
 
-import RedeemedCodesAdapter
+import com.example.konserve.adapters.RedeemedCodesAdapter
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View

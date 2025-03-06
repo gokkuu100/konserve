@@ -13,7 +13,7 @@ android {
     viewBinding {
         enable = true
     }
-    
+
     defaultConfig {
         applicationId = "com.example.konserve"
         minSdk = 26
@@ -23,6 +23,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
 
     buildTypes {
         release {
@@ -43,22 +44,43 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
 }
 
 dependencies {
-    //Google
+    // Google Cloud Vision
+    implementation("com.google.protobuf:protobuf-java:3.21.12")
+    
+    implementation("com.google.cloud:google-cloud-vision:3.16.0") {
+        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
+    }
+
+    implementation ("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+
+    // Explicitly include a single version of `proto-google-common-protos`
+    implementation("com.google.api.grpc:proto-google-common-protos:2.10.0") {
+        version { strictly("2.10.0") }
+    }
+
+
+    // Coroutines
+    implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+    implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+
+    // Lifecycle components
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
 
     // CameraX
     implementation ("androidx.camera:camera-camera2:1.1.0")
     implementation ("androidx.camera:camera-lifecycle:1.1.0")
     implementation ("androidx.camera:camera-view:1.1.0")
-
-    // Tensorflow
-    implementation ("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation ("org.tensorflow:tensorflow-lite-gpu:2.12.0")
-    implementation ("org.tensorflow:tensorflow-lite-support:0.4.4")
-    implementation ("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
-
 
     // Mapbox
     implementation("com.mapbox.maps:android:11.6.1")
@@ -80,9 +102,17 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.firebase.storage.ktx)
-    
+    implementation(libs.firebase.firestore.ktx) {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
+        exclude(group = "com.google.firebase", module = "protolite-well-known-types")
+    }
+    implementation(libs.firebase.storage.ktx) {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
+        exclude(group = "com.google.firebase", module = "protolite-well-known-types")
+    }
+
     // Google Play Services
     implementation(libs.play.services.maps)
 

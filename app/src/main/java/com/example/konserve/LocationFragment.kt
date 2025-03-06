@@ -357,7 +357,7 @@ class LocationFragment : Fragment() {
         binding = LocationFragmentBinding.inflate(inflater, container, false)
         mapView = binding.mapView
 
-        mapView.mapboxMap.loadStyleUri(Style.MAPBOX_STREETS) { style ->
+        mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) { style ->
             centerMapOnKenya()
             checkLocationPermissionsAndEnable()
             addRecyclingCenterPins(style)
@@ -391,7 +391,7 @@ class LocationFragment : Fragment() {
         locationComponentPlugin.addOnIndicatorPositionChangedListener(
             object : OnIndicatorPositionChangedListener {
                 override fun onIndicatorPositionChanged(point: Point) {
-                    mapView.getMapboxMap().setCamera(
+                    mapView.mapboxMap.setCamera(
                         CameraOptions.Builder()
                             .center(point)
                             .zoom(10.0)

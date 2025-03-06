@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.navigation_calendar -> selectedFragment = RewardFragment()
                 R.id.navigation_location -> selectedFragment = LocationFragment()
                 R.id.navigation_profile -> selectedFragment = ProfileFragment()
-                R.id.navigation_camera -> selectedFragment = AICameraFragment()
+                R.id.navigation_camera -> selectedFragment = CameraFragment()
             }
 
             // Load the selected fragment

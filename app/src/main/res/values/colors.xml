@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <color name="glass_color">#88B5D8</color>
+    <color name="metal_color">#8E9CA3</color>
+    <color name="plastic_color">#F7C23E</color>
+    <color name="paper_color">#B3CDC8</color>
+    <color name="textile_color">#E67A7A</color>
+    <color name="food_waste_color">#7AB269</color>
+    <color name="unknown_color">#9E9E9E</color>
+
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
