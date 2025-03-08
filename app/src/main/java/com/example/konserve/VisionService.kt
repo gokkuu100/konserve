@@ -2,178 +2,190 @@ package com.example.konserve
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
-import android.provider.MediaStore
+import android.util.Base64
 import android.util.Log
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.vision.v1.AnnotateImageRequest
-import com.google.cloud.vision.v1.Feature
-import com.google.cloud.vision.v1.Feature.Type
-import com.google.cloud.vision.v1.Image
-import com.google.cloud.vision.v1.ImageAnnotatorClient
-import com.google.cloud.vision.v1.ImageAnnotatorSettings
-import com.google.protobuf.ByteString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-
-import android.os.Build
-import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
+import kotlin.math.sqrt
 
 class VisionService(private val context: Context) {
-
-    private val wasteCategories = mapOf(
-        "glass" to listOf("glass", "bottle", "jar", "window", "mirror"),
-        "metal" to listOf("metal", "can", "aluminum", "steel", "tin", "foil"),
-        "plastic" to listOf("plastic", "bottle", "container", "packaging", "bag", "wrapper"),
-        "paper/cardboard" to listOf("paper", "cardboard", "box", "newspaper", "magazine", "carton"),
-        "textiles" to listOf("textile", "clothing", "fabric", "cloth", "garment", "shoe", "hat"),
-        "food waste" to listOf("food", "fruit", "vegetable", "meat", "leftover", "organic")
-    )
-
-    suspend fun analyzeImage(imageUri: Uri): WasteAnalysisResult = withContext(Dispatchers.IO) {
-        try {
-            // Load image from URI and convert to bitmap
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val source = ImageDecoder.createSource(context.contentResolver, imageUri)
-                ImageDecoder.decodeBitmap(source)
-            } else {
-                context.contentResolver.openInputStream(imageUri)?.use {
-                    BitmapFactory.decodeStream(it)
-                } ?: throw IOException("Failed to decode bitmap")
-            }
-
-            // Prepare image for Google Cloud Vision
-            val byteArrayOutputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, byteArrayOutputStream)
-            val imageBytes = byteArrayOutputStream.toByteArray()
-
-            // Set up the Cloud Vision client
-            val credentials = context.assets.open("credential.json").use {
-                GoogleCredentials.fromStream(it)
-            }
-
-            val settings = ImageAnnotatorSettings.newBuilder()
-                .setCredentialsProvider { credentials }
-                .build()
-
-            ImageAnnotatorClient.create(settings).use { client ->
-                // Create the image annotation request
-                val image = Image.newBuilder()
-                    .setContent(ByteString.copyFrom(imageBytes))
-                    .build()
-
-                val features = listOf(
-                    Feature.newBuilder().setType(Type.LABEL_DETECTION).setMaxResults(15).build(),
-                    Feature.newBuilder().setType(Type.OBJECT_LOCALIZATION).setMaxResults(5).build()
-                )
-
-                val request = AnnotateImageRequest.newBuilder()
-                    .setImage(image)
-                    .addAllFeatures(features)
-                    .build()
-
-                val response = client.batchAnnotateImages(listOf(request))
-
-                // Process annotation results
-                val result = response.responsesList[0]
-
-                // Extract labels from response
-                val labels = result.labelAnnotationsList.map { it.description.lowercase() }
-                val objects = result.localizedObjectAnnotationsList.map { it.name.lowercase() }
-
-                // Combine all detected terms
-                val allTerms = (labels + objects).distinct()
-
-                // Classify waste based on detected terms
-                val wasteType = classifyWaste(allTerms)
-
-                // Create result object with waste type and disposal information
-                WasteAnalysisResult(
-                    wasteType = wasteType,
-                    confidence = calculateConfidence(allTerms, wasteType),
-                    detectedObjects = allTerms,
-                    disposalInfo = getDisposalInfo(wasteType)
-                )
-            }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error analyzing image", e)
-            WasteAnalysisResult(
-                wasteType = "Unknown",
-                confidence = 0.0,
-                detectedObjects = emptyList(),
-                disposalInfo = "Unable to analyze image. Please try again."
-            )
-        }
-    }
-
-    private fun classifyWaste(detectedTerms: List<String>): String {
-        val categoryScores = wasteCategories.mapValues { (_, keywords) ->
-            keywords.count { keyword ->
-                detectedTerms.any { it.contains(keyword) }
-            }
-        }
-
-        return categoryScores.maxByOrNull { it.value }?.key ?: "Unknown"
-    }
-
-    private fun calculateConfidence(detectedTerms: List<String>, wasteType: String): Double {
-        if (wasteType == "Unknown") return 0.0
-
-        val relevantKeywords = wasteCategories[wasteType] ?: return 0.0
-        val matchCount = relevantKeywords.count { keyword ->
-            detectedTerms.any { it.contains(keyword) }
-        }
-
-        return (matchCount.toDouble() / relevantKeywords.size) * 100.0
-    }
-
-    private fun getDisposalInfo(wasteType: String): String {
-        return when (wasteType) {
-            "glass" -> "Glass should be rinsed clean and placed in glass recycling bins. " +
-                    "Different colors of glass (clear, green, brown) may need to be separated depending on your local recycling guidelines. " +
-                    "Glass can be recycled indefinitely without loss of quality."
-
-            "metal" -> "Metal items should be clean and dry before recycling. " +
-                    "Aluminum cans, steel cans, and foil are widely recyclable. " +
-                    "Some metal items may contain valuable materials that can be recovered. " +
-                    "Check with your local recycling facility for specific guidelines."
-
-            "plastic" -> "Clean plastic items before recycling. " +
-                    "Check the recycling number (1-7) on the bottom of plastic items to determine recyclability. " +
-                    "Not all plastics can be recycled in all areas. " +
-                    "Consider reducing plastic use by opting for reusable alternatives."
-
-            "paper/cardboard" -> "Paper and cardboard should be clean and dry. " +
-                    "Remove any plastic wrapping, tape, or metal fasteners. " +
-                    "Flatten cardboard boxes to save space. " +
-                    "Soiled paper with food residue typically cannot be recycled."
-
-            "textiles" -> "Wearable textiles can be donated to charity shops or textile recycling centers. " +
-                    "Worn-out textiles can be recycled into industrial rags or insulation. " +
-                    "Some municipalities have special textile collection programs. " +
-                    "Consider repairing or upcycling before disposal."
-
-            "food waste" -> "Food waste can be composted at home or through municipal composting programs. " +
-                    "Composting reduces methane emissions from landfills. " +
-                    "Food waste can be turned into nutrient-rich soil amendment. " +
-                    "Some areas offer separate food waste collection services."
-
-            else -> "Unable to determine specific disposal information. " +
-                    "Please check your local waste management guidelines for proper disposal instructions."
-        }
-    }
-
+    private val client = OkHttpClient()
+    
     companion object {
+        private const val VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate"
+        private const val API_KEY = "YOUR_API_KEY_HERE" // Replace with your API key
+        private const val MAX_IMAGE_SIZE = 1024 * 1024 // 1MB
         private const val TAG = "VisionService"
     }
-}
 
-data class WasteAnalysisResult(
-    val wasteType: String,
-    val confidence: Double,
-    val detectedObjects: List<String>,
-    val disposalInfo: String
-)
+    enum class WasteType {
+        PLASTIC,
+        PAPER_CARDBOARD,
+        GLASS,
+        METAL,
+        TEXTILE,
+        ORGANIC,
+        UNKNOWN
+    }
+
+    data class ClassificationResult(
+        val wasteType: WasteType,
+        val confidence: Float,
+        val labels: List<String>
+    )
+
+    suspend fun classifyImage(imageUri: Uri): ClassificationResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                val bitmap = loadAndResizeBitmap(imageUri) ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                val base64Image = bitmapToBase64(bitmap)
+                val response = sendVisionRequest(base64Image)
+                processResponse(response)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error classifying image", e)
+                ClassificationResult(WasteType.UNKNOWN, 0f, emptyList())
+            }
+        }
+    }
+
+    private fun loadAndResizeBitmap(uri: Uri): Bitmap? {
+        // Get original dimensions
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        context.contentResolver.openInputStream(uri).use {
+            BitmapFactory.decodeStream(it, null, options)
+        }
+
+        var width = options.outWidth
+        var height = options.outHeight
+
+        // Calculate scaling factor
+        var scaleFactor = 1
+        while ((width * height * 4) > MAX_IMAGE_SIZE) {
+            width /= 2
+            height /= 2
+            scaleFactor *= 2
+        }
+
+        // Load scaled bitmap
+        return context.contentResolver.openInputStream(uri).use {
+            BitmapFactory.Options().apply {
+                inSampleSize = scaleFactor
+            }.let { scaledOptions ->
+                BitmapFactory.decodeStream(it, null, scaledOptions)
+            }
+        }
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+        val bytes = outputStream.toByteArray()
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    private fun sendVisionRequest(base64Image: String): String {
+        val requestJson = JSONObject().apply {
+            put("requests", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("image", JSONObject().apply {
+                        put("content", base64Image)
+                    })
+                    put("features", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("type", "LABEL_DETECTION")
+                            put("maxResults", 20)
+                        })
+                    })
+                })
+            })
+        }.toString()
+
+        val request = Request.Builder()
+            .url("$VISION_API_URL?key=$API_KEY")
+            .post(requestJson.toRequestBody("application/json".toMediaTypeOrNull()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Unexpected response ${response.code}")
+            return response.body?.string() ?: throw IOException("Empty response body")
+        }
+    }
+
+    private fun processResponse(jsonResponse: String): ClassificationResult {
+        val response = JSONObject(jsonResponse)
+        val labels = mutableListOf<Pair<String, Float>>()
+
+        // Extract labels and scores
+        response.getJSONArray("responses").getJSONObject(0)
+            .getJSONArray("labelAnnotations")
+            .let { annotations ->
+                for (i in 0 until annotations.length()) {
+                    annotations.getJSONObject(i).let {
+                        labels.add(
+                            it.getString("description") to it.getDouble("score").toFloat()
+                        )
+                    }
+                }
+            }
+
+        // Define waste type keywords
+        val wasteTypeKeywords = mapOf(
+            WasteType.PLASTIC to listOf(
+                "plastic", "bottle", "container", "polymer", 
+                "polyethylene", "polypropylene", "pvc"
+            ),
+            WasteType.PAPER_CARDBOARD to listOf(
+                "paper", "cardboard", "carton", "box", 
+                "newspaper", "magazine", "book"
+            ),
+            WasteType.GLASS to listOf(
+                "glass", "bottle", "jar", "window", "mirror"
+            ),
+            WasteType.METAL to listOf(
+                "metal", "aluminum", "tin", "steel", 
+                "can", "foil"
+            ),
+            WasteType.TEXTILE to listOf(
+                "textile", "fabric", "cloth", "clothing", 
+                "cotton", "wool", "polyester"
+            ),
+            WasteType.ORGANIC to listOf(
+                "food", "vegetable", "fruit", "meat", 
+                "organic", "plant", "leaf", "wood"
+            )
+        )
+
+        // Calculate scores for each waste type
+        val scores = wasteTypeKeywords.mapValues { (_, keywords) ->
+            labels.sumOf { (label, score) ->
+                if (keywords.any { keyword -> 
+                    label.lowercase().contains(keyword.lowercase()) 
+                }) {
+                    score.toDouble()
+                } else 0.0
+            }.toFloat()
+        }
+
+        // Find the waste type with highest score
+        val (bestType, bestScore) = scores.maxByOrNull { it.value }
+            ?.let { it.key to it.value }
+            ?: (WasteType.UNKNOWN to 0f)
+
+        return ClassificationResult(
+            wasteType = if (bestScore > 0.3f) bestType else WasteType.UNKNOWN,
+            confidence = bestScore,
+            labels = labels.map { it.first }
+        )
+    }
+}

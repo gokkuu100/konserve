@@ -6,9 +6,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.example.konserve.databinding.FragmentWasteAnalysisBinding
-import kotlinx.coroutines.launch
 
 class WasteAnalysisFragment : Fragment() {
 
@@ -16,14 +15,18 @@ class WasteAnalysisFragment : Fragment() {
     private val binding get() = _binding!!
 
     private var imageUriString: String? = null
-    private lateinit var visionService: VisionService
+    private var wasteType: String? = null
+    private var confidence: Float = 0.0f
+    private var labels: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
             imageUriString = it.getString(ARG_IMAGE_URI)
+            wasteType = it.getString(ARG_WASTE_TYPE)
+            confidence = it.getFloat(ARG_CONFIDENCE)
+            labels = it.getString(ARG_LABELS)
         }
-        visionService = VisionService(requireContext())
     }
 
     override fun onCreateView(
@@ -38,68 +41,55 @@ class WasteAnalysisFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Set the captured image
+        // Load the captured image
         imageUriString?.let { uriString ->
-            val imageUri = Uri.parse(uriString)
-            binding.capturedImageView.setImageURI(imageUri)
-
-            // Start analysis
-            analyzeWasteImage(imageUri)
+            val uri = Uri.parse(uriString)
+            Glide.with(this)
+                .load(uri)
+                .into(binding.capturedImageView)
         }
 
-        // Set up back button
+        // Display waste classification results
+        wasteType?.let { type ->
+            val formattedType = type.replace("_", " ").lowercase()
+                .split(" ")
+                .joinToString(" ") { it.capitalize() }
+                
+            binding.wasteTypeText.text = "Waste Type: $formattedType"
+            binding.confidenceText.text = "Confidence: ${(confidence * 100).toInt()}%"
+            
+            // Set appropriate icon and color based on waste type
+            val iconResId = when (type) {
+                "PLASTIC" -> R.drawable.plastic
+                "PAPER_CARDBOARD" -> R.drawable.paper
+                "GLASS" -> R.drawable.glass
+                "METAL" -> R.drawable.metal
+                "TEXTILE" -> R.drawable.textile
+                "ORGANIC" -> R.drawable.foodwaste
+                else -> R.drawable.unknown
+            }
+            
+            binding.wasteTypeIcon.setImageResource(iconResId)
+            
+            // Set recycling instructions based on waste type
+            binding.recyclingInstructionsText.text = getRecyclingInstructions(type)
+        }
+        
+        // Set up the back button
         binding.backButton.setOnClickListener {
-            parentFragmentManager.popBackStack()
-        }
-
-        // Set up scan again button
-        binding.scanAgainButton.setOnClickListener {
             parentFragmentManager.popBackStack()
         }
     }
 
-    private fun analyzeWasteImage(imageUri: Uri) {
-        binding.progressBar.visibility = View.VISIBLE
-        binding.resultCardView.visibility = View.GONE
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val result = visionService.analyzeImage(imageUri)
-
-            // Update UI with results
-            binding.wasteTypeTextView.text = result.wasteType.replaceFirstChar { it.uppercase() }
-            binding.confidenceTextView.text = "Confidence: ${String.format("%.1f", result.confidence)}%"
-            binding.disposalInfoTextView.text = result.disposalInfo
-
-            // Set appropriate category icon
-            val iconResId = when (result.wasteType) {
-                "glass" -> R.drawable.glass
-                "metal" -> R.drawable.metal
-                    "plastic" -> R.drawable.plastic
-                "paper/cardboard" -> R.drawable.paper
-                "textiles" -> R.drawable.textile
-                "food waste" -> R.drawable.foodwaste
-                else -> R.drawable.unknown
-            }
-            binding.categoryIconImageView.setImageResource(iconResId)
-
-            // Set category color
-            val colorResId = when (result.wasteType) {
-                "glass" -> R.color.glass_color
-                "metal" -> R.color.metal_color
-                "plastic" -> R.color.plastic_color
-                "paper/cardboard" -> R.color.paper_color
-                "textiles" -> R.color.textile_color
-                "food waste" -> R.color.food_waste_color
-                else -> R.color.unknown_color
-            }
-            binding.categoryColorView.setBackgroundResource(colorResId)
-
-            // Show detected objects
-            binding.detectedObjectsTextView.text = "Detected: ${result.detectedObjects.take(5).joinToString(", ")}"
-
-            // Hide progress and show results
-            binding.progressBar.visibility = View.GONE
-            binding.resultCardView.visibility = View.VISIBLE
+    private fun getRecyclingInstructions(wasteType: String): String {
+        return when (wasteType) {
+            "PLASTIC" -> "Rinse containers and remove caps. Check local recycling guidelines for accepted plastic types."
+            "PAPER_CARDBOARD" -> "Flatten cardboard boxes. Keep paper dry and clean. Remove any plastic or metal attachments."
+            "GLASS" -> "Rinse containers. Remove caps and lids. Sort by color if required by your local recycling program."
+            "METAL" -> "Rinse cans and containers. Crush if possible to save space."
+            "TEXTILE" -> "Clean textiles can be donated. Worn-out items may be accepted at textile recycling points."
+            "ORGANIC" -> "Compost in your garden or use municipal organic waste collection if available."
+            else -> "Unable to determine specific recycling instructions. Check with your local waste management."
         }
     }
 
@@ -110,12 +100,22 @@ class WasteAnalysisFragment : Fragment() {
 
     companion object {
         private const val ARG_IMAGE_URI = "image_uri"
-
-        fun newInstance(imageUriString: String) =
-            WasteAnalysisFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_IMAGE_URI, imageUriString)
-                }
+        private const val ARG_WASTE_TYPE = "waste_type"
+        private const val ARG_CONFIDENCE = "confidence"
+        private const val ARG_LABELS = "labels"
+        
+        fun newInstance(
+            imageUri: String,
+            wasteType: String,
+            confidence: Float,
+            labels: String
+        ) = WasteAnalysisFragment().apply {
+            arguments = Bundle().apply {
+                putString(ARG_IMAGE_URI, imageUri)
+                putString(ARG_WASTE_TYPE, wasteType)
+                putFloat(ARG_CONFIDENCE, confidence)
+                putString(ARG_LABELS, labels)
             }
+        }
     }
 }

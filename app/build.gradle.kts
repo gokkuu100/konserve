@@ -22,6 +22,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GOOGLE_CLOUD_API_KEY", "\"${project.findProperty("GOOGLE_CLOUD_API_KEY") ?: ""}\"")
     }
 
 
@@ -43,32 +45,61 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     packaging {
         resources {
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/io.netty.versions.properties"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/AL2.0"
+            excludes += "META-INF/LGPL2.1"
         }
     }
 }
 
 dependencies {
-    // Google Cloud Vision
-    implementation("com.google.protobuf:protobuf-java:3.21.12")
-    
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.storage.ktx)
+
+    // HTTP Client and JSON parsing
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Image processing
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    kapt("com.github.bumptech.glide:compiler:4.16.0")
+
+    // Google Cloud Vision with careful exclusions
     implementation("com.google.cloud:google-cloud-vision:3.16.0") {
+        exclude(group = "com.google.guava", module = "guava")
+        exclude(group = "com.google.protobuf", module = "protobuf-java")
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+        exclude(group = "io.grpc", module = "grpc-protobuf")
+        exclude(group = "io.grpc", module = "grpc-stub")
+        exclude(group = "io.grpc", module = "grpc-protobuf-lite")
+        exclude(group = "org.threeten", module = "threetenbp")
         exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
     }
-
-    implementation ("com.google.auth:google-auth-library-oauth2-http:1.23.0")
-
-    // Explicitly include a single version of `proto-google-common-protos`
-    implementation("com.google.api.grpc:proto-google-common-protos:2.10.0") {
-        version { strictly("2.10.0") }
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0") {
+        exclude(group = "com.google.guava", module = "guava")
     }
-
-
+    
+    // Use a compatible version of gRPC that works with both Firebase and Vision
+    implementation("io.grpc:grpc-okhttp:1.44.1") {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+    }
+    
     // Coroutines
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
@@ -89,29 +120,6 @@ dependencies {
     // Calendar
     implementation ("com.applandeo:material-calendar-view:1.9.2")
     implementation("com.kizitonwose.calendar:view:2.5.4")
-
-    // Glide for image handling
-    implementation(libs.glide)
-    kapt("com.github.bumptech.glide:compiler:4.14.2")
-
-    // Retrofit and Gson
-    implementation(libs.retrofit)
-    implementation(libs.converter.gson)
-
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx) {
-        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
-        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
-        exclude(group = "com.google.firebase", module = "protolite-well-known-types")
-    }
-    implementation(libs.firebase.storage.ktx) {
-        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
-        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
-        exclude(group = "com.google.firebase", module = "protolite-well-known-types")
-    }
 
     // Google Play Services
     implementation(libs.play.services.maps)

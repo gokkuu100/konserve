@@ -20,17 +20,19 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.example.konserve.databinding.FragmentCameraBinding
-import com.google.common.util.concurrent.ListenableFuture
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlinx.coroutines.launch
 
 class CameraFragment : Fragment() {
     private var _binding: FragmentCameraBinding? = null
     private val binding get() = _binding!!
 
+    
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
     private var photoUri: Uri? = null
@@ -162,15 +164,36 @@ class CameraFragment : Fragment() {
     }
 
     private fun analyzeImage(imageUri: Uri) {
-        // Show analysis in progress
         binding.progressIndicator.visibility = View.VISIBLE
-
-        // Create and show result fragment
-        val wasteAnalysisFragment = WasteAnalysisFragment.newInstance(imageUri.toString())
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.main_container, wasteAnalysisFragment)
-            .addToBackStack(null)
-            .commit()
+        
+        lifecycleScope.launch {
+            try {
+                val visionService = VisionService(requireContext())
+                val result = visionService.classifyImage(imageUri)
+                
+                // Create and show result fragment
+                val wasteAnalysisFragment = WasteAnalysisFragment.newInstance(
+                    imageUri.toString(),
+                    result.wasteType.name,
+                    result.confidence,
+                    result.labels.joinToString(",")
+                )
+                
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.main_container, wasteAnalysisFragment)
+                    .addToBackStack(null)
+                    .commit()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error analyzing image", e)
+                binding.progressIndicator.visibility = View.GONE
+                Toast.makeText(
+                    requireContext(),
+                    "Failed to analyze image: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     override fun onDestroyView() {
