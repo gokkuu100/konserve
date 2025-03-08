@@ -18,11 +18,21 @@ import java.io.IOException
 import kotlin.math.sqrt
 
 class VisionService(private val context: Context) {
-    private val client = OkHttpClient()
-    
+    private val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request()
+            Log.d(TAG, "Sending request to: ${request.url}")
+            val response = chain.proceed(request)
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Error response: ${response.code} - ${response.body?.string()}")
+            }
+            response
+        }
+                .build()
+
     companion object {
         private const val VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate"
-        private const val API_KEY = "YOUR_API_KEY_HERE" // Replace with your API key
+        private const val API_KEY = "AIzaSyAq-MCPT3Dc6Xy-S0ucsi3CB2XVXbUsIbM" // Replace with your actual API key
         private const val MAX_IMAGE_SIZE = 1024 * 1024 // 1MB
         private const val TAG = "VisionService"
     }
@@ -46,9 +56,16 @@ class VisionService(private val context: Context) {
     suspend fun classifyImage(imageUri: Uri): ClassificationResult {
         return withContext(Dispatchers.IO) {
             try {
-                val bitmap = loadAndResizeBitmap(imageUri) ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                Log.d(TAG, "Starting image classification for URI: $imageUri")
+                val bitmap = loadAndResizeBitmap(imageUri)
+                Log.d(TAG, "Image loaded and resized: ${bitmap.width}x${bitmap.height}")
+                
                 val base64Image = bitmapToBase64(bitmap)
+                Log.d(TAG, "Image converted to base64 (length: ${base64Image.length})")
+                
                 val response = sendVisionRequest(base64Image)
+                Log.d(TAG, "Received Vision API response")
+                
                 processResponse(response)
             } catch (e: Exception) {
                 Log.e(TAG, "Error classifying image", e)
@@ -57,41 +74,43 @@ class VisionService(private val context: Context) {
         }
     }
 
-    private fun loadAndResizeBitmap(uri: Uri): Bitmap? {
-        // Get original dimensions
-        val options = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        context.contentResolver.openInputStream(uri).use {
-            BitmapFactory.decodeStream(it, null, options)
-        }
-
-        var width = options.outWidth
-        var height = options.outHeight
-
-        // Calculate scaling factor
-        var scaleFactor = 1
-        while ((width * height * 4) > MAX_IMAGE_SIZE) {
-            width /= 2
-            height /= 2
-            scaleFactor *= 2
-        }
-
-        // Load scaled bitmap
-        return context.contentResolver.openInputStream(uri).use {
-            BitmapFactory.Options().apply {
-                inSampleSize = scaleFactor
-            }.let { scaledOptions ->
-                BitmapFactory.decodeStream(it, null, scaledOptions)
-            }
+    private fun loadAndResizeBitmap(uri: Uri): Bitmap {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                // Get original dimensions
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeStream(inputStream, null, options)
+                
+                // Calculate sample size
+                var sampleSize = 1
+                val imageSize = options.outWidth * options.outHeight * 4
+                while (imageSize / (sampleSize * sampleSize) > MAX_IMAGE_SIZE) {
+                    sampleSize *= 2
+                }
+                
+                // Load scaled bitmap
+                return context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    }.let { scaledOptions ->
+                        BitmapFactory.decodeStream(stream, null, scaledOptions)
+                            ?: throw IOException("Failed to decode image")
+                    }
+                } ?: throw IOException("Failed to open input stream")
+            } ?: throw IOException("Failed to open input stream")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading image", e)
+            throw e
         }
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-        val bytes = outputStream.toByteArray()
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return ByteArrayOutputStream().use { outputStream ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+            Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+        }
     }
 
     private fun sendVisionRequest(base64Image: String): String {
@@ -113,12 +132,17 @@ class VisionService(private val context: Context) {
 
         val request = Request.Builder()
             .url("$VISION_API_URL?key=$API_KEY")
+            .addHeader("Content-Type", "application/json")
             .post(requestJson.toRequestBody("application/json".toMediaTypeOrNull()))
             .build()
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Unexpected response ${response.code}")
-            return response.body?.string() ?: throw IOException("Empty response body")
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "No error body"
+                Log.e(TAG, "API Error: ${response.code} - $errorBody")
+                throw IOException("Unexpected response ${response.code} - $errorBody")
+            }
+            response.body?.string() ?: throw IOException("Empty response body")
         }
     }
 

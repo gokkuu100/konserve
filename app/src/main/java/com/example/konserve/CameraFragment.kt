@@ -86,78 +86,103 @@ class CameraFragment : Fragment() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
 
         cameraProviderFuture.addListener({
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+            try {
+                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder()
-                .build()
-                .also {
-                    it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
+                val preview = Preview.Builder()
+                    .build()
+                    .also {
+                        it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
+                    }
+
+                imageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .build()
+
+                // Try to use the back camera first, fall back to any available camera
+                val cameraSelector = try {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                } catch (e: Exception) {
+                    Log.w(TAG, "Back camera not available, trying default front camera")
+                    try {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Front camera not available, trying first available camera")
+                        // Create a selector for the first available camera
+                        CameraSelector.Builder()
+                            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                            .build()
+                    }
                 }
 
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                .build()
+                try {
+                    // Unbind previous use cases before rebinding
+                    cameraProvider.unbindAll()
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                // Unbind previous use cases before rebinding
-                cameraProvider.unbindAll()
-
-                // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture
-                )
+                    // Bind use cases to camera
+                    cameraProvider.bindToLifecycle(
+                        this, cameraSelector, preview, imageCapture
+                    )
+                } catch (exc: Exception) {
+                    Log.e(TAG, "Use case binding failed", exc)
+                    Toast.makeText(
+                        requireContext(),
+                        "Failed to start camera: ${exc.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             } catch (exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
+                Log.e(TAG, "Camera initialization failed", exc)
+                Toast.makeText(
+                    requireContext(),
+                    "Failed to initialize camera: ${exc.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }, ContextCompat.getMainExecutor(requireContext()))
     }
 
     private fun takePhoto() {
-        // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
 
-        // Create time stamped name and MediaStore entry
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())
+        // Create output options object
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Konserve")
-            }
         }
 
-        // Create output options object which contains file + metadata
-        val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(requireContext().contentResolver,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues)
-            .build()
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(
+            requireContext().contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues
+        ).build()
 
         // Show progress indicator
         binding.progressIndicator.visibility = View.VISIBLE
 
-        // Take the picture
         imageCapture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(requireContext()),
             object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    output.savedUri?.let { uri ->
+                        Log.d(TAG, "Photo captured: $uri")
+                        analyzeImage(uri)
+                    } ?: run {
+                        Log.e(TAG, "Error: Saved image URI is null")
+                        binding.progressIndicator.visibility = View.GONE
+                        Toast.makeText(requireContext(), "Failed to save image", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
                     binding.progressIndicator.visibility = View.GONE
-                    Toast.makeText(requireContext(), "Failed to capture image", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    photoUri = output.savedUri
-                    binding.progressIndicator.visibility = View.GONE
-
-                    // Send photo to Google Cloud Vision for analysis
-                    photoUri?.let { uri ->
-                        analyzeImage(uri)
-                    }
+                    Toast.makeText(
+                        requireContext(),
+                        "Failed to capture image: ${exc.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         )
