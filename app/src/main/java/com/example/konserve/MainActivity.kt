@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.navigation_chat -> selectedFragment = ChatFragment()
                 R.id.navigation_reward -> selectedFragment = RewardFragment()
                 R.id.navigation_location -> selectedFragment = LocationFragment()
-                R.id.navigation_profile -> selectedFragment = ProfileFragment()
+                R.id.navigation_profile -> selectedFragment = HomeFragment()
                 R.id.navigation_camera -> selectedFragment = CameraFragment()
             }
 

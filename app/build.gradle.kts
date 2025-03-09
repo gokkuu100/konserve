@@ -144,5 +144,7 @@ dependencies {
     implementation ("com.airbnb.android:lottie:6.6.3")
     implementation("com.facebook.shimmer:shimmer:0.5.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation ("androidx.recyclerview:recyclerview:1.3.2")
+    implementation ("androidx.transition:transition:1.4.1")
     
 }

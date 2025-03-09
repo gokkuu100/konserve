@@ -9,6 +9,7 @@ import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.FirebaseException
 import com.google.firebase.firestore.Query
 import com.google.type.Date
+import com.example.konserve.models.Report
 
 class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFirestore) {
 
@@ -199,6 +200,28 @@ class FirebaseManager(private val auth: FirebaseAuth, val firestore: FirebaseFir
             }
             .addOnFailureListener { e ->
                 onComplete(false, e.localizedMessage)
+            }
+    }
+
+    fun fetchReports(onComplete: (List<Report>?, String?) -> Unit): ListenerRegistration {
+        return firestore.collection("reports")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onComplete(null, error.message)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    val reports = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Report::class.java)?.apply {
+                            id = doc.id
+                        }
+                    }
+                    onComplete(reports, null)
+                } else {
+                    onComplete(emptyList(), null)
+                }
             }
     }
 }
