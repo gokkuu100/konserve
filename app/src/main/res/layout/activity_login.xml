@@ -64,7 +64,7 @@
         app:layout_constraintTop_toBottomOf="@id/loginText"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
-        
+
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/emailEditText"
             android:layout_width="350dp"
@@ -72,9 +72,9 @@
             android:hint="@string/email"
             android:inputType="textEmailAddress"
             android:textColor="@color/black" />
-        
+
     </com.google.android.material.textfield.TextInputLayout>
-    
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/passwordTextInputLayout"
         android:layout_width="0dp"
@@ -86,7 +86,7 @@
         app:layout_constraintTop_toBottomOf="@id/emailTextInputLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" >
-        
+
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/passwordEditText"
             android:layout_width="350dp"

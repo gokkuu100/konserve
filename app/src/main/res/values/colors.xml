@@ -344,4 +344,17 @@
     <color name="blue_grey_900">#263238</color>
     <!-- Blue Grey -->
 
+    <!-- Chat colors -->
+    <color name="chat_background">#F5F5F5</color>
+    <color name="sent_message_bg">#DCF8C6</color>
+    <color name="received_message_bg">#FFFFFF</color>
+    <color name="username_color">#2196F3</color>
+    <color name="message_text">#000000</color>
+    <color name="timestamp_color">#757575</color>
+
+    <!-- Map colors -->
+    <color name="recycling_marker">#4CAF50</color>
+    <color name="user_marker">#2196F3</color>
+    <color name="map_pulse">#1976D2</color>
+
 </resources>

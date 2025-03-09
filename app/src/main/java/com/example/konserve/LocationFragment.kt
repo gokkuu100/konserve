@@ -1,35 +1,38 @@
 package com.example.konserve
 
 import android.Manifest
-import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.example.konserve.databinding.LocationFragmentBinding
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.MapView
-import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.Style
+import com.mapbox.maps.plugin.animation.MapAnimationOptions
+import com.mapbox.maps.plugin.animation.flyTo
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
-import com.mapbox.maps.plugin.locationcomponent.OnIndicatorPositionChangedListener
 import com.mapbox.maps.plugin.locationcomponent.location
-import org.json.JSONObject
+import android.content.Context
 
 class LocationFragment : Fragment() {
 
@@ -343,9 +346,7 @@ class LocationFragment : Fragment() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            mapView.mapboxMap.getStyle { _ ->
-                enableLocationComponent()
-            }
+            enableLocationComponent()
         } else {
             Toast.makeText(context, "Location permission is required", Toast.LENGTH_SHORT).show()
         }
@@ -353,14 +354,19 @@ class LocationFragment : Fragment() {
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         binding = LocationFragmentBinding.inflate(inflater, container, false)
         mapView = binding.mapView
 
         mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) { style ->
             centerMapOnKenya()
-            checkLocationPermissionsAndEnable()
+            checkLocationPermission()
             addRecyclingCenterPins(style)
+        }
+
+        // Add my location button click listener
+        binding.myLocationButton.setOnClickListener {
+            centerOnUserLocation()
         }
 
         return binding.root
@@ -374,8 +380,12 @@ class LocationFragment : Fragment() {
         mapView.mapboxMap.setCamera(nairobiCenter)
     }
 
-    private fun checkLocationPermissionsAndEnable() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+    private fun checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
             enableLocationComponent()
         } else {
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -383,33 +393,118 @@ class LocationFragment : Fragment() {
     }
 
     private fun enableLocationComponent() {
-        val locationComponentPlugin = mapView.location
-        locationComponentPlugin.updateSettings {
-            enabled = true
+        try {
+            mapView.location.updateSettings {
+                enabled = true
+                pulsingEnabled = true
+                pulsingColor = ContextCompat.getColor(requireContext(), R.color.black)
+            }
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error enabling location component", e)
         }
+    }
 
-        locationComponentPlugin.addOnIndicatorPositionChangedListener(
-            object : OnIndicatorPositionChangedListener {
-                override fun onIndicatorPositionChanged(point: Point) {
-                    mapView.mapboxMap.setCamera(
-                        CameraOptions.Builder()
-                            .center(point)
-                            .zoom(10.0)
-                            .build()
-                    )
-                    // Optionally, add a marker at the user's location
-                    locationComponentPlugin.removeOnIndicatorPositionChangedListener(this)
+    private fun centerOnUserLocation() {
+        try {
+            val locationComponent = mapView.location
+
+            // Check if location is enabled
+            if (!locationComponent.enabled) {
+                locationComponent.updateSettings {
+                    enabled = true
+                    pulsingEnabled = true
+                    pulsingColor = ContextCompat.getColor(requireContext(), R.color.black)
                 }
             }
-        )
+
+            // Get current location using indicator position
+            locationComponent.addOnIndicatorPositionChangedListener { point ->
+                animateCamera(point)
+                // We don't need to remove the listener since we're not storing it
+            }
+
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error getting location", e)
+            Toast.makeText(requireContext(), "Error getting location", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun addRecyclingCenterPins(style: Style) {
-        val featureCollection = FeatureCollection.fromJson(geoJsonString)
+        try {
+            val featureCollection = FeatureCollection.fromJson(geoJsonString)
+            pointAnnotationManager = mapView.annotations.createPointAnnotationManager()
 
-        pointAnnotationManager = mapView.annotations.createPointAnnotationManager()
+            val recyclingMarkerBitmap = getBitmapFromVectorDrawable(
+                requireContext(),
+                R.drawable.ic_recycling_marker
+            )
 
-        fun getBitmapFromVectorDrawable(context: Context, drawableId: Int): Bitmap? {
+            if (recyclingMarkerBitmap != null) {
+                style.addImage("recycling-marker", recyclingMarkerBitmap)
+            }
+
+            for (feature in featureCollection.features() ?: emptyList()) {
+                val point = feature.geometry() as Point
+                val name = feature.getStringProperty("name")
+                val description = feature.getStringProperty("description")
+
+                val pointAnnotationOptions = PointAnnotationOptions()
+                    .withPoint(point)
+                    .withIconImage("recycling-marker")
+                    .withIconSize(1.5)
+
+                val pointAnnotation = pointAnnotationManager.create(pointAnnotationOptions)
+
+                pointAnnotationManager.addClickListener {
+                    if (it.id == pointAnnotation.id) {
+                        showInfoBottomSheet(name, description, point)
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error adding recycling center pins", e)
+        }
+    }
+
+    private fun showInfoBottomSheet(name: String, description: String, point: Point) {
+        val bottomSheetDialog = BottomSheetDialog(requireContext())
+        val view = layoutInflater.inflate(R.layout.map_info_bottom_sheet, null)
+
+        view.findViewById<TextView>(R.id.locationName).text = name
+        view.findViewById<TextView>(R.id.locationDescription).text =
+            description.replace("<br>", "\n")
+
+        view.findViewById<Button>(R.id.directionsButton).setOnClickListener {
+            openDirections(point)
+        }
+
+        bottomSheetDialog.setContentView(view)
+        bottomSheetDialog.show()
+    }
+
+    private fun openDirections(destination: Point) {
+        try {
+            // Use a generic maps URL that works with multiple map apps
+            val uri = Uri.parse(
+                "geo:0,0?q=${destination.latitude()},${destination.longitude()}"
+            )
+            val intent = Intent(Intent.ACTION_VIEW, uri)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error opening directions", e)
+            Toast.makeText(
+                requireContext(),
+                "No maps application found",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun getBitmapFromVectorDrawable(context: Context, drawableId: Int): Bitmap? {
+        return try {
             val drawable = ContextCompat.getDrawable(context, drawableId) ?: return null
             val bitmap = Bitmap.createBitmap(
                 drawable.intrinsicWidth,
@@ -419,40 +514,33 @@ class LocationFragment : Fragment() {
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
             drawable.draw(canvas)
-            return bitmap
-        }
-
-        val bitmap = getBitmapFromVectorDrawable(requireContext(), R.drawable.pointer_icon_foreground)
-        if (bitmap != null) {
-            style.addImage("custom-marker", bitmap)
-        } else {
-            Log.e("MapActivity", "Failed to load vector drawable as bitmap")
-        }
-
-        for (feature in featureCollection.features() ?: emptyList()) {
-            val point = feature.geometry() as Point
-            val name = feature.getStringProperty("name")
-            val description = feature.getStringProperty("description")
-
-            val pointAnnotationOptions = PointAnnotationOptions()
-                .withPoint(point)
-                .withIconImage("custom-marker")
-
-            val pointAnnotation = pointAnnotationManager.create(pointAnnotationOptions)
-
-            pointAnnotationManager.addClickListener {
-                if (it == pointAnnotation) {
-                    showInfoWindow(name, description)
-                    true
-                } else {
-                    false
-                }
-            }
+            bitmap
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error creating bitmap from drawable", e)
+            null
         }
     }
 
+    private fun animateCamera(point: Point, zoom: Double = 15.0) {
+        try {
+            val cameraOptions = CameraOptions.Builder()
+                .center(point)
+                .zoom(zoom)
+                .build()
 
-    private fun showInfoWindow(name: String, description: String) {
-        Toast.makeText(requireContext(), "$name\n$description", Toast.LENGTH_LONG).show()
+            mapView.mapboxMap.flyTo(
+                cameraOptions,
+                MapAnimationOptions.Builder()
+                    .duration(1000)
+                    .build()
+            )
+        } catch (e: Exception) {
+            Log.e("LocationFragment", "Error animating camera", e)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mapView.onDestroy()
     }
 }

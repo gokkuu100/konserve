@@ -138,4 +138,11 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    // UI Components
+    implementation("de.hdodenhof:circleimageview:3.1.0")
+    implementation ("com.airbnb.android:lottie:6.6.3")
+    implementation("com.facebook.shimmer:shimmer:0.5.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    
 }
