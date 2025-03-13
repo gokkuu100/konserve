@@ -27,17 +27,18 @@ class ProfileFragment : Fragment() {
     private lateinit var profileImage: ImageView
     private lateinit var editProfileImgBtn: ImageButton
     private lateinit var userNameEditText: EditText
-    private lateinit var emailEditText: EditText
     private lateinit var phoneEditText: EditText
     private lateinit var genderEditText: EditText
     private lateinit var addressEditText: EditText
     private lateinit var saveButton: Button
+    private lateinit var backButton: ImageView
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.activity_profile, container, false)
+
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -51,11 +52,11 @@ class ProfileFragment : Fragment() {
         profileImage = view.findViewById(R.id.profile_image)
         editProfileImgBtn = view.findViewById(R.id.edit_profile_image)
         userNameEditText = view.findViewById(R.id.username)
-        emailEditText = view.findViewById(R.id.email)
         phoneEditText = view.findViewById(R.id.phone)
         genderEditText = view.findViewById(R.id.gender)
         addressEditText = view.findViewById(R.id.address)
         saveButton = view.findViewById(R.id.save_button)
+        backButton = view.findViewById(R.id.backButton)
 
         val currentUser = auth.currentUser
         currentUser?.let {
@@ -66,7 +67,6 @@ class ProfileFragment : Fragment() {
 
         // Set up onClick listeners to make fields editable when clicked
         userNameEditText.setOnClickListener { setFieldsEditable(true) }
-        emailEditText.setOnClickListener { setFieldsEditable(true) }
         phoneEditText.setOnClickListener { setFieldsEditable(true) }
         genderEditText.setOnClickListener { setFieldsEditable(true) }
         addressEditText.setOnClickListener { setFieldsEditable(true) }
@@ -83,14 +83,18 @@ class ProfileFragment : Fragment() {
                 saveUserData(it.uid)
             }
         }
+
+        // Find the back button and set its click listener
+        backButton.setOnClickListener {
+            // This will pop the current fragment off the back stack
+            // and return to the previous fragment (HomeFragment)
+            parentFragmentManager.popBackStack()
+        }
     }
 
     private fun setFieldsEditable(editable: Boolean) {
         userNameEditText.isFocusableInTouchMode = editable
         userNameEditText.isFocusable = editable
-
-        emailEditText.isFocusableInTouchMode = editable
-        emailEditText.isFocusable = editable
 
         phoneEditText.isFocusableInTouchMode = editable
         phoneEditText.isFocusable = editable
@@ -108,7 +112,6 @@ class ProfileFragment : Fragment() {
                 Toast.makeText(requireContext(), "Error loading data: $error", Toast.LENGTH_SHORT).show()
             } else if (data != null) {
                 userNameEditText.setText(data["fullName"] as? String ?: "")
-                emailEditText.setText(data["email"] as? String ?: "")
                 phoneEditText.setText(data["phone"] as? String ?: "")
                 genderEditText.setText(data["gender"] as? String ?: "")
                 addressEditText.setText(data["address"] as? String ?: "")
@@ -132,7 +135,6 @@ class ProfileFragment : Fragment() {
     private fun saveUserData(userId: String) {
         val updatedData = hashMapOf(
             "fullName" to userNameEditText.text.toString(),
-            "email" to emailEditText.text.toString(),
             "phone" to phoneEditText.text.toString(),
             "gender" to genderEditText.text.toString(),
             "address" to addressEditText.text.toString()

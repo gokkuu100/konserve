@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <ImageView
+            android:id="@+id/backButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/baseline_arrow_back_24"
+            android:padding="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="About Konserve"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Our Vision"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Konserve was born from a vision to create a more sustainable and environmentally conscious world. Our mission is to empower communities to take an active role in environmental conservation through technology and collective action. Our main start is Nairobi, Kenya."
+            android:layout_marginTop="8dp"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="The Inspiration"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="The inspiration behind Konserve came from witnessing the growing environmental challenges in our communities and recognizing the need for a platform that could bridge the gap between concerned citizens and environmental action. We believe that every person has the power to make a difference, and technology can be the catalyst for positive environmental change."
+            android:layout_marginTop="8dp"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Our Approach"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Konserve combines cutting-edge technology with community engagement to create a powerful platform for environmental conservation. Through our app, users can:\n\n• Report environmental issues directly to authorities\n• Identify types of waste through Artificial Intelligence \n• Engage with like-minded community members\n• Learn about sustainable practices\n• Contribute to environmental data collection"
+            android:layout_marginTop="8dp"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Development Journey"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="The development of Konserve has been a journey of innovation and commitment to environmental sustainability. Our team has worked tirelessly to create an intuitive, user-friendly platform that makes environmental reporting and monitoring accessible to everyone. We've incorporated advanced features like image recognition for waste classification, real-time reporting systems, and community engagement tools."
+            android:layout_marginTop="8dp"
+            android:textSize="16sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Future Vision"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Looking ahead, we envision Konserve becoming a global platform for environmental conservation, connecting communities worldwide in their efforts to protect and preserve our planet. We are committed to continuously improving and expanding our features based on user feedback and emerging environmental needs."
+            android:layout_marginTop="8dp"
+            android:textSize="16sp"
+            android:layout_marginBottom="24dp"/>
+
+    </LinearLayout>
+</ScrollView> 

@@ -20,6 +20,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.example.konserve.models.Report
 import java.text.SimpleDateFormat
 import java.util.*
+import android.content.Intent
 
 class HomeFragment : Fragment() {
     private lateinit var reportsRecyclerView: RecyclerView
@@ -100,28 +101,48 @@ class HomeFragment : Fragment() {
 
         // Setup menu item clicks
         menuView.findViewById<View>(R.id.profileMenuItem).setOnClickListener {
-            // Handle profile click
             popupWindow?.dismiss()
+            // Navigate to ProfileFragment
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.main_container, ProfileFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         menuView.findViewById<View>(R.id.reportMenuItem).setOnClickListener {
-            // Handle report incident click
             popupWindow?.dismiss()
+            // Navigate to ReportMenuFragment
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.main_container, ReportMenuFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         menuView.findViewById<View>(R.id.talkMenuItem).setOnClickListener {
-            // Handle talk to us click
             popupWindow?.dismiss()
+            // Navigate to TalkMenuFragment
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.main_container, TalkMenuFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         menuView.findViewById<View>(R.id.aboutMenuItem).setOnClickListener {
-            // Handle about click
             popupWindow?.dismiss()
+            // Navigate to AboutMenuFragment
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.main_container, AboutMenuFragment())
+                .addToBackStack(null)
+                .commit()
         }
 
         menuView.findViewById<View>(R.id.logoutMenuItem).setOnClickListener {
-            // Handle logout click
             popupWindow?.dismiss()
+            // Handle logout
+            FirebaseAuth.getInstance().signOut()
+            // Navigate to LoginActivity
+            startActivity(Intent(requireContext(), LoginActivity::class.java))
+            requireActivity().finish()
         }
 
         // Show popup
