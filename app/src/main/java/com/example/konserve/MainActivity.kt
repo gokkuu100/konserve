@@ -1,6 +1,6 @@
 package com.example.konserve
 
-import android.content.Intent
+
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
@@ -18,10 +18,10 @@ class MainActivity : AppCompatActivity() {
             var selectedFragment: Fragment? = null
             when (item.itemId) {
                 R.id.navigation_chat -> selectedFragment = ChatFragment()
-                R.id.navigation_calendar -> selectedFragment = RewardFragment()
+                R.id.navigation_reward -> selectedFragment = RewardFragment()
                 R.id.navigation_location -> selectedFragment = LocationFragment()
-                R.id.navigation_profile -> selectedFragment = ProfileFragment()
-                R.id.navigation_camera -> selectedFragment = AICameraFragment()
+                R.id.navigation_profile -> selectedFragment = HomeFragment()
+                R.id.navigation_camera -> selectedFragment = CameraFragment()
             }
 
             // Load the selected fragment

@@ -126,9 +126,24 @@
         android:text="Redeem Code"
         android:textStyle="bold"
         android:padding="14dp"
-        android:backgroundTint="@color/purple_700"
+        android:backgroundTint="@color/green_700"
         android:textColor="@android:color/white"
         app:layout_constraintTop_toBottomOf="@id/inviteDetails"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp"/>
+
+
+    <Button
+        android:id="@+id/withdrawBtn"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Withdraw"
+        android:textStyle="bold"
+        android:padding="14dp"
+        android:backgroundTint="@color/black"
+        android:textColor="@android:color/white"
+        app:layout_constraintTop_toBottomOf="@id/redeemBtn"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="12dp"/>
@@ -142,7 +157,7 @@
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@android:color/black"
-        app:layout_constraintTop_toBottomOf="@id/redeemBtn"
+        app:layout_constraintTop_toBottomOf="@id/withdrawBtn"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="24dp"/>
 

@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -23,6 +24,7 @@ class ChatFragment : Fragment() {
     private lateinit var firestore: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var firebaseManager: FirebaseManager
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -38,14 +40,27 @@ class ChatFragment : Fragment() {
         messageEditText = view.findViewById(R.id.messageEditText)
         sendButton = view.findViewById(R.id.sendButton)
         chatRecyclerView = view.findViewById(R.id.chatRecyclerView)
+        swipeRefreshLayout = view.findViewById(R.id.swipeRefresh)
 
         // Setup RecyclerView
-        chatRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        chatAdapter = ChatAdapter()
+        chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
+            stackFromEnd = true
+        }
+        chatAdapter = ChatAdapter().apply {
+            setCurrentUserId(auth.currentUser?.uid ?: "")
+        }
         chatRecyclerView.adapter = chatAdapter
+
+        // Setup SwipeRefreshLayout
+        swipeRefreshLayout.setOnRefreshListener {
+            loadMessages()
+        }
 
         // Load messages
         loadMessages()
+
+        // Setup real-time updates
+        setupRealtimeUpdates()
 
         // Send button click listener
         sendButton.setOnClickListener {
@@ -59,20 +74,34 @@ class ChatFragment : Fragment() {
         return view
     }
 
+    private fun setupRealtimeUpdates() {
+        firestore.collection("messages")
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
+                    return@addSnapshotListener
+                }
+
+                snapshots?.let { documents ->
+                    val messages = documents.mapNotNull { doc ->
+                        doc.toObject(Message::class.java)
+                    }
+                    chatAdapter.submitList(messages) {
+                        chatRecyclerView.scrollToPosition(messages.size - 1)
+                    }
+                }
+            }
+    }
+
     private fun loadMessages() {
         firebaseManager.getMessages { messages, error ->
+            swipeRefreshLayout.isRefreshing = false
             if (error != null) {
-                // Handle error
                 Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
-                error.printStackTrace()
             } else {
-                if (messages.isNullOrEmpty()) {
-                    // Handle case when there are no messages
-                    Toast.makeText(requireContext(), "No messages yet!", Toast.LENGTH_SHORT).show()
-                    chatAdapter.submitList(emptyList())
-                } else {
-                    chatAdapter.submitList(messages)
-                    chatRecyclerView.scrollToPosition(messages.size - 1)
+                chatAdapter.submitList(messages) {
+                    chatRecyclerView.scrollToPosition(messages?.size?.minus(1) ?: 0)
                 }
             }
         }

@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import de.hdodenhof.circleimageview.CircleImageView
 
 data class Message(
     val username: String = "",
@@ -17,41 +18,82 @@ data class Message(
     val timestamp: Long = 0L
 )
 
-class ChatAdapter : ListAdapter<Message, ChatAdapter.ChatViewHolder>(DiffCallback) {
+class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) {
+    private var currentUserId: String? = null
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChatViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_message, parent, false)
-        return ChatViewHolder(view)
+    companion object {
+        private const val VIEW_TYPE_SENT = 1
+        private const val VIEW_TYPE_RECEIVED = 2
+        
+        private object DiffCallback : DiffUtil.ItemCallback<Message>() {
+            override fun areItemsTheSame(oldItem: Message, newItem: Message): Boolean {
+                return oldItem.timestamp == newItem.timestamp
+            }
+
+            override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
+                return oldItem == newItem
+            }
+        }
+
+        private fun formatTimestamp(timestamp: Long): String {
+            val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
+            return sdf.format(Date(timestamp))
+        }
     }
 
-    override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
+    fun setCurrentUserId(userId: String) {
+        currentUserId = userId
+    }
+
+    override fun getItemViewType(position: Int): Int {
         val message = getItem(position)
-        holder.bind(message)
+        return if (message.username == currentUserId) VIEW_TYPE_SENT else VIEW_TYPE_RECEIVED
     }
 
-    class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val usernameTextView: TextView = itemView.findViewById(R.id.usernameTextView)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return when (viewType) {
+            VIEW_TYPE_SENT -> {
+                val view = LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_message_sent, parent, false)
+                SentMessageViewHolder(view)
+            }
+            else -> {
+                val view = LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_message_received, parent, false)
+                ReceivedMessageViewHolder(view)
+            }
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val message = getItem(position)
+        when (holder) {
+            is SentMessageViewHolder -> holder.bind(message)
+            is ReceivedMessageViewHolder -> holder.bind(message)
+        }
+    }
+
+    class SentMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val messageTextView: TextView = itemView.findViewById(R.id.messageTextView)
         private val timestampTextView: TextView = itemView.findViewById(R.id.timestampTextView)
 
         fun bind(message: Message) {
-            usernameTextView.text = message.username
             messageTextView.text = message.text
-
-            val dateFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
-            val date = Date(message.timestamp)
-            timestampTextView.text = dateFormat.format(date)
+            timestampTextView.text = formatTimestamp(message.timestamp)
         }
     }
 
-    companion object DiffCallback : DiffUtil.ItemCallback<Message>() {
-        override fun areItemsTheSame(oldItem: Message, newItem: Message): Boolean {
-            return oldItem.timestamp == newItem.timestamp
-        }
+    class ReceivedMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val usernameTextView: TextView = itemView.findViewById(R.id.usernameTextView)
+        private val messageTextView: TextView = itemView.findViewById(R.id.messageTextView)
+        private val timestampTextView: TextView = itemView.findViewById(R.id.timestampTextView)
+        private val profileImageView: CircleImageView = itemView.findViewById(R.id.profileImageView)
 
-        override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
-            return oldItem == newItem
+        fun bind(message: Message) {
+            usernameTextView.text = message.username
+            messageTextView.text = message.text
+            timestampTextView.text = formatTimestamp(message.timestamp)
+            // You can add profile image loading here using Glide
         }
     }
 }

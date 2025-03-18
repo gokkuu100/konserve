@@ -1,6 +1,6 @@
 package com.example.konserve
 
-import RedeemedCodesAdapter
+import com.example.konserve.adapters.RedeemedCodesAdapter
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +12,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.Timestamp
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.ImageButton
+import android.widget.PopupWindow
 
 class RewardFragment : Fragment() {
 
@@ -25,6 +29,8 @@ class RewardFragment : Fragment() {
     private lateinit var redeemedCodesAdapter: RedeemedCodesAdapter
     private var userPoints: Int = 0
     private val redeemedCodesList = mutableListOf<Pair<String, Int>>()
+    private lateinit var withdrawButton: Button
+    private var popupWindow: PopupWindow? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -43,6 +49,7 @@ class RewardFragment : Fragment() {
         codeEditText = view.findViewById(R.id.codeEditText)
         submitButton = view.findViewById(R.id.redeemBtn)
         redeemedCodesRecyclerView = view.findViewById(R.id.recentActivityRecyclerView)
+        withdrawButton = view.findViewById(R.id.withdrawBtn)
 
         // Set up RecyclerView
         redeemedCodesAdapter = RedeemedCodesAdapter(redeemedCodesList)
@@ -61,6 +68,11 @@ class RewardFragment : Fragment() {
             } else {
                 Toast.makeText(requireContext(), "Please enter a code", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        // Set up withdraw button click listener
+        withdrawButton.setOnClickListener {
+            showWithdrawPopup()
         }
 
         return view
@@ -191,5 +203,43 @@ class RewardFragment : Fragment() {
                 }
                 redeemedCodesAdapter.updateData(tempList) // Use tempList to update adapter
             }
+    }
+
+    private fun showWithdrawPopup() {
+        // Inflate the popup layout
+        val popupView = LayoutInflater.from(requireContext()).inflate(R.layout.withdraw_popup, null)
+
+        // Create the popup window
+        popupWindow = PopupWindow(
+            popupView,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            true
+        ).apply {
+            // Set animation style for bottom-up animation
+            animationStyle = R.style.PopupAnimation
+            
+            // Enable hardware acceleration for smooth animation
+            setIsClippedToScreen(true)
+            
+            // Make sure touches outside dismiss the popup
+            isOutsideTouchable = true
+            isFocusable = true
+        }
+
+        // Set up close button
+        val closeButton = popupView.findViewById<ImageButton>(R.id.closePopup)
+        closeButton.setOnClickListener {
+            popupWindow?.dismiss()
+        }
+
+        // Show the popup window from bottom
+        popupWindow?.showAtLocation(view, Gravity.BOTTOM, 0, 0)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Dismiss popup if it's showing when fragment is destroyed
+        popupWindow?.dismiss()
     }
 }
