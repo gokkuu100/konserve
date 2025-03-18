@@ -26,7 +26,7 @@ class CloudVisionService(private val context: Context) {
         private const val TAG = "CloudVisionService"
         private const val MAX_IMAGE_SIZE = 1024 * 1024 // 1MB
         private const val VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate"
-        private const val API_KEY = ""
+        private const val API_KEY = "5"
     }
 
 
