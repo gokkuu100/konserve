@@ -51,6 +51,7 @@
         <activity android:name=".MainActivity" />
         <activity android:name=".RegisterActivity" />
         <activity android:name=".ProfileFragment" />
+        <activity android:name=".ReportDetailedActivity" />
     </application>
 
 </manifest>

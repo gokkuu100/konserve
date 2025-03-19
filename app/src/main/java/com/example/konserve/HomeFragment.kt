@@ -1,5 +1,6 @@
 package com.example.konserve
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -8,23 +9,24 @@ import android.widget.*
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.DiffUtil
 import com.bumptech.glide.Glide
-import android.transition.AutoTransition
-import android.transition.TransitionManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.example.konserve.models.Report
 import java.text.SimpleDateFormat
 import java.util.*
-import android.content.Intent
 
 class HomeFragment : Fragment() {
     private lateinit var reportsRecyclerView: RecyclerView
     private lateinit var menuIcon: ImageView
+    private lateinit var featuredReportContainer: FrameLayout
+    private lateinit var featuredReportImage: ImageView
+    private lateinit var featuredReportTitle: TextView
+    private lateinit var featuredReportAuthor: TextView
+    private lateinit var featuredReportDate: TextView
     private var popupWindow: PopupWindow? = null
     private lateinit var firebaseManager: FirebaseManager
     private lateinit var reportsAdapter: ReportsAdapter
@@ -37,28 +39,36 @@ class HomeFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
-        
+
         // Initialize Firebase Manager
         firebaseManager = FirebaseManager(FirebaseAuth.getInstance(), FirebaseFirestore.getInstance())
-        
+
         // Initialize views
         reportsRecyclerView = view.findViewById(R.id.reportsRecyclerView)
         menuIcon = view.findViewById(R.id.menuIcon)
         progressBar = view.findViewById(R.id.progressBar)
-        
+        featuredReportContainer = view.findViewById(R.id.featuredReportContainer)
+        featuredReportImage = view.findViewById(R.id.featuredReportImage)
+        featuredReportTitle = view.findViewById(R.id.featuredReportTitle)
+        featuredReportAuthor = view.findViewById(R.id.featuredReportAuthor)
+        featuredReportDate = view.findViewById(R.id.featuredReportDate)
+
         setupRecyclerView()
         setupMenuIcon()
         fetchReports()
-        
+
         return view
     }
 
     private fun setupRecyclerView() {
-        reportsAdapter = ReportsAdapter()
+        reportsAdapter = ReportsAdapter(object : ReportClickListener {
+            override fun onReportClick(report: Report) {
+                navigateToReportDetail(report)
+            }
+        })
         reportsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = reportsAdapter
-            addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
         }
     }
 
@@ -68,26 +78,58 @@ class HomeFragment : Fragment() {
 
     private fun fetchReports() {
         progressBar.visibility = View.VISIBLE
-        
+
         reportListener = firebaseManager.fetchReports { reports, error ->
             progressBar.visibility = View.GONE
-            
+
             if (error != null) {
                 showError("Error fetching reports: $error")
                 return@fetchReports
             }
-            
+
             reports?.let {
-                reportsAdapter.submitList(it)
+                if (it.isNotEmpty()) {
+                    setupFeaturedReport(it[0])
+                    reportsAdapter.submitList(it.subList(1, it.size))
+                } else {
+                    reportsAdapter.submitList(emptyList())
+                }
             }
         }
+    }
+
+    private fun setupFeaturedReport(report: Report) {
+        featuredReportTitle.text = report.title
+        featuredReportAuthor.text = "By " + (report.author ?: "Unknown Author")
+        featuredReportDate.text = formatDate(report.date.toDate())
+
+        Glide.with(requireContext())
+            .load(report.imageUrl)
+            .placeholder(R.drawable.placeholder_image)
+            .error(R.drawable.error_image)
+            .into(featuredReportImage)
+
+        featuredReportContainer.setOnClickListener {
+            navigateToReportDetail(report)
+        }
+    }
+
+    private fun navigateToReportDetail(report: Report) {
+        val intent = Intent(requireContext(), ReportDetailedActivity::class.java).apply {
+            putExtra("REPORT_ID", report.id)
+        }
+        startActivity(intent)
+    }
+
+    private fun formatDate(date: Date): String {
+        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+        return formatter.format(date)
     }
 
     private fun showMenu(anchorView: View) {
         // Inflate menu layout
         val menuView = LayoutInflater.from(requireContext())
             .inflate(R.layout.menu_popup, null)
-
         // Create popup window
         popupWindow = PopupWindow(
             menuView,
@@ -98,7 +140,6 @@ class HomeFragment : Fragment() {
             elevation = 20f
             setBackgroundDrawable(null)
         }
-
         // Setup menu item clicks
         menuView.findViewById<View>(R.id.profileMenuItem).setOnClickListener {
             popupWindow?.dismiss()
@@ -108,7 +149,6 @@ class HomeFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-
         menuView.findViewById<View>(R.id.reportMenuItem).setOnClickListener {
             popupWindow?.dismiss()
             // Navigate to ReportMenuFragment
@@ -117,7 +157,6 @@ class HomeFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-
         menuView.findViewById<View>(R.id.talkMenuItem).setOnClickListener {
             popupWindow?.dismiss()
             // Navigate to TalkMenuFragment
@@ -126,7 +165,6 @@ class HomeFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-
         menuView.findViewById<View>(R.id.aboutMenuItem).setOnClickListener {
             popupWindow?.dismiss()
             // Navigate to AboutMenuFragment
@@ -135,7 +173,6 @@ class HomeFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
-
         menuView.findViewById<View>(R.id.logoutMenuItem).setOnClickListener {
             popupWindow?.dismiss()
             // Handle logout
@@ -144,7 +181,6 @@ class HomeFragment : Fragment() {
             startActivity(Intent(requireContext(), LoginActivity::class.java))
             requireActivity().finish()
         }
-
         // Show popup
         popupWindow?.showAsDropDown(anchorView)
     }
@@ -160,8 +196,13 @@ class HomeFragment : Fragment() {
     }
 }
 
-class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(ReportDiffCallback()) {
-    
+interface ReportClickListener {
+    fun onReportClick(report: Report)
+}
+
+class ReportsAdapter(private val clickListener: ReportClickListener) :
+    ListAdapter<Report, ReportsAdapter.ReportViewHolder>(ReportDiffCallback()) {
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReportViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_report_card, parent, false)
@@ -170,48 +211,24 @@ class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(Repo
 
     class ReportViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleView: TextView = itemView.findViewById(R.id.reportTitle)
+        private val thumbnailView: ImageView = itemView.findViewById(R.id.reportThumbnail)
+        private val authorView: TextView = itemView.findViewById(R.id.reportAuthor)
         private val dateView: TextView = itemView.findViewById(R.id.reportDate)
-        private val previewDescriptionView: TextView = itemView.findViewById(R.id.reportPreviewDescription)
-        private val fullDescriptionView: TextView = itemView.findViewById(R.id.reportFullDescription)
-        private val imageView: ImageView = itemView.findViewById(R.id.reportImage)
-        private val expandButton: TextView = itemView.findViewById(R.id.expandButton)
-        private val collapseButton: TextView = itemView.findViewById(R.id.collapseButton)
-        private val expandedLayout: LinearLayout = itemView.findViewById(R.id.expandedLayout)
-        private var isExpanded = false
 
-        fun bind(report: Report) {
+        fun bind(report: Report, clickListener: ReportClickListener) {
             titleView.text = report.title
+            authorView.text = "By " + (report.author ?: "Unknown Author")
             dateView.text = formatDate(report.date.toDate())
-            previewDescriptionView.text = report.description
-            fullDescriptionView.text = report.description
 
             Glide.with(itemView.context)
                 .load(report.imageUrl)
                 .placeholder(R.drawable.placeholder_image)
                 .error(R.drawable.error_image)
-                .into(imageView)
+                .into(thumbnailView)
 
-            expandButton.setOnClickListener {
-                isExpanded = true
-                updateExpandedState()
+            itemView.setOnClickListener {
+                clickListener.onReportClick(report)
             }
-
-            collapseButton.setOnClickListener {
-                isExpanded = false
-                updateExpandedState()
-            }
-
-            updateExpandedState()
-        }
-
-        private fun updateExpandedState() {
-            expandedLayout.visibility = if (isExpanded) View.VISIBLE else View.GONE
-            expandButton.visibility = if (isExpanded) View.GONE else View.VISIBLE
-
-            TransitionManager.beginDelayedTransition(
-                itemView as ViewGroup,
-                AutoTransition()
-            )
         }
 
         private fun formatDate(date: Date): String {
@@ -221,7 +238,7 @@ class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(Repo
     }
 
     override fun onBindViewHolder(holder: ReportViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), clickListener)
     }
 }
 
@@ -233,4 +250,4 @@ class ReportDiffCallback : DiffUtil.ItemCallback<Report>() {
     override fun areContentsTheSame(oldItem: Report, newItem: Report): Boolean {
         return oldItem == newItem
     }
-} 
+}

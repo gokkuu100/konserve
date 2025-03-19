@@ -7,5 +7,6 @@ data class Report(
     val title: String = "",
     val description: String = "",
     val imageUrl: String = "",
+    val author: String? = null,
     val date: Timestamp = Timestamp.now()
 ) 

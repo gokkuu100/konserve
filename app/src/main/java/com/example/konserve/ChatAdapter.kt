@@ -57,11 +57,12 @@ class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) 
                     .inflate(R.layout.item_message_sent, parent, false)
                 SentMessageViewHolder(view)
             }
-            else -> {
+            VIEW_TYPE_RECEIVED -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_message_received, parent, false)
                 ReceivedMessageViewHolder(view)
             }
+            else -> throw IllegalArgumentException("Invalid view type")
         }
     }
 
