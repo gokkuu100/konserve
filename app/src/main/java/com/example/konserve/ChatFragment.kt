@@ -1,6 +1,7 @@
 package com.example.konserve
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,9 +12,16 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ChatFragment : Fragment() {
 
@@ -21,9 +29,7 @@ class ChatFragment : Fragment() {
     private lateinit var sendButton: Button
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var chatAdapter: ChatAdapter
-    private lateinit var firestore: FirebaseFirestore
-    private lateinit var auth: FirebaseAuth
-    private lateinit var firebaseManager: FirebaseManager
+    private lateinit var supabaseManager: SupabaseManager
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
     override fun onCreateView(
@@ -31,38 +37,32 @@ class ChatFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_chat, container, false)
 
-        // Initialize Firebase
-        auth = FirebaseAuth.getInstance()
-        firestore = FirebaseFirestore.getInstance()
-        firebaseManager = FirebaseManager(auth, firestore)
+        supabaseManager = SupabaseManager(requireContext());
 
-        // Initialize UI components
         messageEditText = view.findViewById(R.id.messageEditText)
         sendButton = view.findViewById(R.id.sendButton)
         chatRecyclerView = view.findViewById(R.id.chatRecyclerView)
         swipeRefreshLayout = view.findViewById(R.id.swipeRefresh)
 
-        // Setup RecyclerView
         chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
         }
-        chatAdapter = ChatAdapter().apply {
-            setCurrentUserId(auth.currentUser?.uid ?: "")
-        }
-        chatRecyclerView.adapter = chatAdapter
 
-        // Setup SwipeRefreshLayout
+        CoroutineScope(Dispatchers.Main).launch {
+            val currentUserId = supabaseManager.getCurrentUser() ?: ""
+            chatAdapter = ChatAdapter().apply {
+                setCurrentUserId(currentUserId)
+            }
+            chatRecyclerView.adapter = chatAdapter
+        }
+
         swipeRefreshLayout.setOnRefreshListener {
             loadMessages()
         }
 
-        // Load messages
         loadMessages()
-
-        // Setup real-time updates
         setupRealtimeUpdates()
 
-        // Send button click listener
         sendButton.setOnClickListener {
             val messageText = messageEditText.text.toString().trim()
             if (messageText.isNotEmpty()) {
@@ -75,67 +75,148 @@ class ChatFragment : Fragment() {
     }
 
     private fun setupRealtimeUpdates() {
-        firestore.collection("messages")
-            .orderBy("timestamp", Query.Direction.ASCENDING)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
-                    return@addSnapshotListener
+        val channel = supabaseManager.client.realtime.channel("public:messages")
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Connect to Supabase Realtime
+                supabaseManager.client.realtime.connect()
+
+                // Listen for INSERT (New messages)
+                launch {
+                    channel.postgresChangeFlow<PostgresAction.Insert>("public") {
+                        table = "messages"
+                    }.collect { change ->
+                        withContext(Dispatchers.Main) {
+                            loadMessages()
+                        }
+                    }
                 }
 
-                snapshots?.let { documents ->
-                    val messages = documents.mapNotNull { doc ->
-                        doc.toObject(Message::class.java)
-                    }
-                    chatAdapter.submitList(messages) {
-                        chatRecyclerView.scrollToPosition(messages.size - 1)
+                // Listen for UPDATE (Edited messages)
+                launch {
+                    channel.postgresChangeFlow<PostgresAction.Update>("public") {
+                        table = "messages"
+                    }.collect { change ->
+                        withContext(Dispatchers.Main) {
+                            loadMessages()
+                        }
                     }
                 }
-            }
-    }
 
-    private fun loadMessages() {
-        firebaseManager.getMessages { messages, error ->
-            swipeRefreshLayout.isRefreshing = false
-            if (error != null) {
-                Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
-            } else {
-                chatAdapter.submitList(messages) {
-                    chatRecyclerView.scrollToPosition(messages?.size?.minus(1) ?: 0)
+                // Listen for DELETE (Deleted messages)
+                launch {
+                    channel.postgresChangeFlow<PostgresAction.Delete>("public") {
+                        table = "messages"
+                    }.collect { change ->
+                        withContext(Dispatchers.Main) {
+                            loadMessages()
+                        }
+                    }
+                }
+
+                // Subscribe to the channel
+                channel.subscribe()
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Error setting up real-time updates", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
+
     private fun sendMessage(messageText: String) {
-        val currentUserId = auth.currentUser?.uid
-        if (currentUserId != null) {
-            // Fetch the user's full name
-            firebaseManager.getUserData(currentUserId) { userData, error ->
-                if (error != null) {
-                    Toast.makeText(requireContext(), "Failed to retrieve user data.", Toast.LENGTH_SHORT).show()
-                } else if (userData != null) {
-                    val fullName = userData["fullName"] as? String ?: "Anonymous"
+        CoroutineScope(Dispatchers.IO).launch {
+            val currentUserId = try {
+                supabaseManager.getCurrentUser()
+            } catch (e: Exception) {
+                Log.e("ChatFragment", "Error retrieving current user ID", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Error retrieving user ID", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
 
-                    // Create message object
-                    val message = hashMapOf(
-                        "username" to fullName,
-                        "text" to messageText,
-                        "timestamp" to System.currentTimeMillis()
-                    )
+            if (currentUserId == null) {
+                Log.e("ChatFragment", "User not logged in.")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "User not logged in.", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
 
-                    // Save the message in Firestore
-                    firebaseManager.sendMessage(message) { success, error ->
-                        if (success) {
-                            Toast.makeText(requireContext(), "Message sent!", Toast.LENGTH_SHORT).show()
+            try {
+                supabaseManager.getUserData(currentUserId) { userData, error ->
+                    CoroutineScope(Dispatchers.Main).launch {
+                        if (error != null) {
+                            Log.e("ChatFragment", "Failed to retrieve user data: $error")
+                            Toast.makeText(requireContext(), "Failed to retrieve user data: $error", Toast.LENGTH_SHORT).show()
+                        } else if (userData != null) {
+                            val fullName = userData["full_name"] as? String ?: "Anonymous"
+
+                            CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    val message = mapOf(
+                                        "username" to fullName,
+                                        "text" to messageText,
+                                        "timestamp" to System.currentTimeMillis(),
+                                        "user_id" to currentUserId
+                                    )
+
+                                    supabaseManager.client.postgrest["messages"].insert(message)
+
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(requireContext(), "Message sent!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("ChatFragment", "Error sending message", e)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(requireContext(), "Error sending message.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
                         } else {
-                            Toast.makeText(requireContext(), "Error sending message.", Toast.LENGTH_SHORT).show()
+                            Log.e("ChatFragment", "User data is null.")
+                            Toast.makeText(requireContext(), "Error: User data not found.", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
+            } catch (e: Exception) {
+                Log.e("ChatFragment", "Error retrieving user data", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Error retrieving user data.", Toast.LENGTH_SHORT).show()
+                }
             }
-        } else {
-            Toast.makeText(requireContext(), "User not logged in.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun loadMessages() {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val messages = withContext(Dispatchers.IO) {
+                    supabaseManager.client.postgrest["messages"]
+                        .select {
+                            order("timestamp", Order.ASCENDING)
+                        }
+                        .decodeList<Message>()
+                }
+                swipeRefreshLayout.isRefreshing = false
+                chatAdapter.submitList(messages) {
+                    chatRecyclerView.scrollToPosition(messages.size - 1)
+                }
+            } catch (e: Exception) {
+                swipeRefreshLayout.isRefreshing = false
+                Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        CoroutineScope(Dispatchers.IO).launch {
+            supabaseManager.client.realtime.disconnect()
         }
     }
 }

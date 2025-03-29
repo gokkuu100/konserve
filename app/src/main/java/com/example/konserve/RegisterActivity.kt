@@ -7,20 +7,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.textfield.TextInputEditText
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class RegisterActivity : AppCompatActivity() {
-    private lateinit var firebaseManager: FirebaseManager
+    private lateinit var supabaseManager: SupabaseManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_register)
 
-        val auth = FirebaseAuth.getInstance()
-        val firestore = FirebaseFirestore.getInstance()
-
-        firebaseManager = FirebaseManager(auth, firestore)
+        supabaseManager = SupabaseManager(this)
 
         val fullNameEditText = findViewById<TextInputEditText>(R.id.fullNameEditText)
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
@@ -29,10 +27,9 @@ class RegisterActivity : AppCompatActivity() {
         val registerButton = findViewById<Button>(R.id.registerButton)
         val redirect = findViewById<TextView>(R.id.signinredirect)
 
-
         registerButton.setOnClickListener {
             val fullName = fullNameEditText.text.toString()
-            val email = emailEditText.text.toString()
+            val email = emailEditText.text.toString().trim()
             val password = passwordEditText.text.toString()
             val confirmPassword = confirmPasswordEditText.text.toString()
 
@@ -59,18 +56,21 @@ class RegisterActivity : AppCompatActivity() {
                     confirmPasswordEditText.requestFocus()
                 }
                 else -> {
-                    firebaseManager.registerUser(email, password, fullName) { success, message ->
-                        if (success) {
-                            startActivity(Intent(this, LoginActivity::class.java))
-                            finish()
-                        } else {
-                            Toast.makeText(this, message ?: "Registration failed", Toast.LENGTH_SHORT).show()
+                    CoroutineScope(Dispatchers.Main).launch {
+                        supabaseManager.registerUser(email, password, fullName) { success, message ->
+                            if (success) {
+                                startActivity(Intent(this@RegisterActivity, LoginActivity::class.java))
+                                finish()
+                            } else {
+                                Toast.makeText(this@RegisterActivity, message ?: "Registration failed", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
             }
         }
-        redirect.setOnClickListener{
+        
+        redirect.setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
         }
     }

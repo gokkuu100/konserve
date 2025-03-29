@@ -1,6 +1,6 @@
 package com.example.konserve.models
 
-import com.google.firebase.Timestamp
+import java.time.Instant
 
 data class Report(
     var id: String = "",
@@ -8,5 +8,5 @@ data class Report(
     val description: String = "",
     val imageUrl: String = "",
     val author: String? = null,
-    val date: Timestamp = Timestamp.now()
-) 
+    val date: Instant = Instant.now()
+)

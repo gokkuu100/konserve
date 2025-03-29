@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.konserve"
-        minSdk = 26
+        minSdk = 29
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -57,17 +57,33 @@ android {
             excludes += "META-INF/LICENSE"
             excludes += "META-INF/AL2.0"
             excludes += "META-INF/LGPL2.1"
+            excludes += "META-INF/versions/9/previous-compilation-data.bin"
+            excludes += "META-INF/*.kotlin_module"
         }
     }
 }
 
 dependencies {
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.firebase.storage.ktx)
+    // Add Supabase dependencies
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.1.3"))
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
+    implementation("io.github.jan-tennert.supabase:storage-kt")
+
+    implementation("io.ktor:ktor-client-okhttp:3.1.1")
+    implementation("io.ktor:ktor-client-cio:3.1.1")
+    implementation("io.ktor:ktor-client-content-negotiation")
+    implementation("io.ktor:ktor-client-core:3.1.1")
+    implementation("io.ktor:ktor-client-logging:3.1.1")
+    implementation("io.ktor:ktor-client-json:3.1.1")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.1")
+    implementation("io.ktor:ktor-client-android:3.1.1")
+    implementation("io.ktor:ktor-client-auth:3.1.1")
+    implementation("io.ktor:ktor-client-core-jvm:3.1.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     // HTTP Client and JSON parsing
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
@@ -113,6 +129,8 @@ dependencies {
     implementation ("androidx.camera:camera-lifecycle:1.1.0")
     implementation ("androidx.camera:camera-view:1.1.0")
 
+    implementation ("com.google.guava:guava:31.1-android")
+
     // Mapbox
     implementation("com.mapbox.maps:android:11.6.1")
     implementation ("com.mapbox.mapboxsdk:mapbox-sdk-services:5.7.0")
@@ -123,6 +141,7 @@ dependencies {
 
     // Google Play Services
     implementation(libs.play.services.maps)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 
     // TensorFlow Lite
     implementation(libs.tensorflow.lite)

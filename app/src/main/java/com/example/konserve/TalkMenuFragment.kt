@@ -6,14 +6,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import java.util.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TalkMenuFragment : Fragment() {
     private lateinit var backButton: ImageView
     private lateinit var feedbackEditText: EditText
     private lateinit var submitButton: Button
+    private lateinit var supabaseManager: SupabaseManager
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -21,14 +23,15 @@ class TalkMenuFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_talk_menu, container, false)
-        
+
         // Initialize views
         backButton = view.findViewById(R.id.backButton)
         feedbackEditText = view.findViewById(R.id.feedbackEditText)
         submitButton = view.findViewById(R.id.submitButton)
-        
+
+        supabaseManager = SupabaseManager(requireContext())
         setupClickListeners()
-        
+
         return view
     }
 
@@ -52,22 +55,33 @@ class TalkMenuFragment : Fragment() {
 
         submitButton.isEnabled = false
 
-        val feedbackData = hashMapOf(
-            "feedback" to feedback,
-            "userId" to FirebaseAuth.getInstance().currentUser?.uid,
-            "timestamp" to Date()
-        )
+        CoroutineScope(Dispatchers.IO).launch {
+            val userId = supabaseManager.getCurrentUser()
+            if (userId == null) {
+                withContext(Dispatchers.Main) {
+                    submitButton.isEnabled = true
+                    Toast.makeText(context, "User not logged in", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
 
-        FirebaseFirestore.getInstance()
-            .collection("feedback")
-            .add(feedbackData)
-            .addOnSuccessListener {
-                Toast.makeText(context, "Feedback submitted successfully", Toast.LENGTH_SHORT).show()
-                parentFragmentManager.popBackStack()
-            }
-            .addOnFailureListener { e ->
+            val feedbackData = mapOf(
+                "feedback" to feedback,
+                "user_id" to userId,
+                "timestamp" to System.currentTimeMillis()
+            )
+
+            val success = supabaseManager.saveReport(feedbackData)
+
+            withContext(Dispatchers.Main) {
                 submitButton.isEnabled = true
-                Toast.makeText(context, "Failed to submit feedback: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (success) {
+                    Toast.makeText(context, "Feedback submitted successfully", Toast.LENGTH_SHORT).show()
+                    parentFragmentManager.popBackStack()
+                } else {
+                    Toast.makeText(context, "Failed to submit feedback", Toast.LENGTH_SHORT).show()
+                }
             }
+        }
     }
 }

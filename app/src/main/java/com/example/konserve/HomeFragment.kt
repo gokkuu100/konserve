@@ -12,12 +12,17 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.DiffUtil
 import com.bumptech.glide.Glide
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
 import com.example.konserve.models.Report
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
+
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class HomeFragment : Fragment() {
     private lateinit var reportsRecyclerView: RecyclerView
@@ -28,10 +33,9 @@ class HomeFragment : Fragment() {
     private lateinit var featuredReportAuthor: TextView
     private lateinit var featuredReportDate: TextView
     private var popupWindow: PopupWindow? = null
-    private lateinit var firebaseManager: FirebaseManager
+    private lateinit var supabaseManager: SupabaseManager
     private lateinit var reportsAdapter: ReportsAdapter
     private lateinit var progressBar: ProgressBar
-    private var reportListener: ListenerRegistration? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -40,8 +44,8 @@ class HomeFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
 
-        // Initialize Firebase Manager
-        firebaseManager = FirebaseManager(FirebaseAuth.getInstance(), FirebaseFirestore.getInstance())
+        // Initialize Supabase Manager
+        supabaseManager = SupabaseManager(requireContext())
 
         // Initialize views
         reportsRecyclerView = view.findViewById(R.id.reportsRecyclerView)
@@ -58,6 +62,13 @@ class HomeFragment : Fragment() {
         fetchReports()
 
         return view
+    }
+
+    private fun formatDate(timestamp: Instant): String {
+        val date = Date.from(timestamp) // Convert Instant to Date
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.systemDefault()) // Use system's timezone
+        return formatter.format(timestamp)
     }
 
     private fun setupRecyclerView() {
@@ -79,20 +90,22 @@ class HomeFragment : Fragment() {
     private fun fetchReports() {
         progressBar.visibility = View.VISIBLE
 
-        reportListener = firebaseManager.fetchReports { reports, error ->
-            progressBar.visibility = View.GONE
+        CoroutineScope(Dispatchers.Main).launch {
+            supabaseManager.fetchReports { reports, error ->
+                progressBar.visibility = View.GONE
 
-            if (error != null) {
-                showError("Error fetching reports: $error")
-                return@fetchReports
-            }
+                if (error != null) {
+                    showError("Error fetching reports: $error")
+                    return@fetchReports
+                }
 
-            reports?.let {
-                if (it.isNotEmpty()) {
-                    setupFeaturedReport(it[0])
-                    reportsAdapter.submitList(it.subList(1, it.size))
-                } else {
-                    reportsAdapter.submitList(emptyList())
+                reports?.let {
+                    if (it.isNotEmpty()) {
+                        setupFeaturedReport(it[0])
+                        reportsAdapter.submitList(it.subList(1, it.size))
+                    } else {
+                        reportsAdapter.submitList(emptyList())
+                    }
                 }
             }
         }
@@ -101,7 +114,7 @@ class HomeFragment : Fragment() {
     private fun setupFeaturedReport(report: Report) {
         featuredReportTitle.text = report.title
         featuredReportAuthor.text = "By " + (report.author ?: "Unknown Author")
-        featuredReportDate.text = formatDate(report.date.toDate())
+        featuredReportDate.text = formatDate(report.date)
 
         Glide.with(requireContext())
             .load(report.imageUrl)
@@ -176,8 +189,7 @@ class HomeFragment : Fragment() {
         menuView.findViewById<View>(R.id.logoutMenuItem).setOnClickListener {
             popupWindow?.dismiss()
             // Handle logout
-            FirebaseAuth.getInstance().signOut()
-            // Navigate to LoginActivity
+            // Implement Supabase logout if needed
             startActivity(Intent(requireContext(), LoginActivity::class.java))
             requireActivity().finish()
         }
@@ -191,7 +203,6 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        reportListener?.remove()
         popupWindow?.dismiss()
     }
 }
@@ -218,7 +229,7 @@ class ReportsAdapter(private val clickListener: ReportClickListener) :
         fun bind(report: Report, clickListener: ReportClickListener) {
             titleView.text = report.title
             authorView.text = "By " + (report.author ?: "Unknown Author")
-            dateView.text = formatDate(report.date.toDate())
+            dateView.text =  formatDate(Date.from(report.date))
 
             Glide.with(itemView.context)
                 .load(report.imageUrl)

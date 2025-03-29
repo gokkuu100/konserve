@@ -2,20 +2,20 @@ package com.example.konserve
 
 import com.example.konserve.adapters.RedeemedCodesAdapter
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.*
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.Timestamp
-import android.view.Gravity
-import android.view.WindowManager
-import android.widget.ImageButton
-import android.widget.PopupWindow
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class RewardFragment : Fragment() {
 
@@ -24,8 +24,7 @@ class RewardFragment : Fragment() {
     private lateinit var codeEditText: EditText
     private lateinit var submitButton: Button
     private lateinit var redeemedCodesRecyclerView: RecyclerView
-    private lateinit var firestore: FirebaseFirestore
-    private lateinit var auth: FirebaseAuth
+    private lateinit var supabaseManager: SupabaseManager
     private lateinit var redeemedCodesAdapter: RedeemedCodesAdapter
     private var userPoints: Int = 0
     private val redeemedCodesList = mutableListOf<Pair<String, Int>>()
@@ -37,11 +36,8 @@ class RewardFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_rewards, container, false)
 
-        // Initialize Firebase
-        auth = FirebaseAuth.getInstance()
-        firestore = FirebaseFirestore.getInstance()
-
-        loadUserData()
+        // Initialize Supabase Manager
+        supabaseManager = SupabaseManager(requireContext())
 
         // Initialize UI components
         userNameTextView = view.findViewById(R.id.userName)
@@ -57,14 +53,19 @@ class RewardFragment : Fragment() {
         redeemedCodesRecyclerView.adapter = redeemedCodesAdapter
 
         // Load user points & redeemed codes
-        loadUserPoints()
-        loadRedeemedCodes()
+        CoroutineScope(Dispatchers.Main).launch {
+            loadUserData()
+            loadUserPoints()
+            loadRedeemedCodes()
+        }
 
         // Handle code submission
         submitButton.setOnClickListener {
             val code = codeEditText.text.toString().trim()
             if (code.isNotEmpty()) {
-                checkIfCodeAlreadyRedeemed(code)
+                CoroutineScope(Dispatchers.Main).launch {
+                    checkIfCodeAlreadyRedeemed(code)
+                }
             } else {
                 Toast.makeText(requireContext(), "Please enter a code", Toast.LENGTH_SHORT).show()
             }
@@ -78,131 +79,118 @@ class RewardFragment : Fragment() {
         return view
     }
 
-    private fun loadTotalLoyaltyPoints() {
-        val userId = auth.currentUser?.uid ?: return
-        firestore.collection("users").document(userId)
-            .collection("redeemed_codes").get()
-            .addOnSuccessListener { documents ->
-                var totalPoints = 0
-                for (document in documents) {
-                    totalPoints += document.getLong("points")?.toInt() ?: 0
-                }
-                loyaltyPointsTextView.text = "$totalPoints points"
+    private suspend fun loadUserData() {
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+        supabaseManager.getUserData(userId) { userData, error ->
+            if (error != null) {
+                Toast.makeText(requireContext(), "Error loading user data: $error", Toast.LENGTH_SHORT).show()
+            } else if (userData != null) {
+                val name = userData["full_name"] as? String ?: "User"
+                userPoints = userData["points"] as? Int ?: 0
+
+                // Update UI
+                userNameTextView.text = name
+                loyaltyPointsTextView.text = "$userPoints points"
             }
-    }
-
-    private fun loadUserPoints() {
-        val userId = auth.currentUser?.uid ?: return
-        firestore.collection("users").document(userId)
-            .addSnapshotListener { document, _ ->
-                if (document != null && document.exists()) {
-                    userPoints = document.getLong("points")?.toInt() ?: 0
-
-                }
-            }
-    }
-
-    private fun checkIfCodeAlreadyRedeemed(code: String) {
-        val userId = auth.currentUser?.uid ?: return
-        firestore.collection("users").document(userId)
-            .collection("redeemed_codes").document(code).get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    Toast.makeText(requireContext(), "Code already redeemed", Toast.LENGTH_SHORT).show()
-                } else {
-                    validateCode(code)
-                }
-            }
-    }
-
-    private fun validateCode(code: String) {
-        firestore.collection("reward_codes").document(code).get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    val points = document.getLong("points")?.toInt() ?: 0
-                    val expiresAt = document.getTimestamp("expires_at")
-                    val isActive = document.getBoolean("is_active") ?: true
-
-                    if (!isActive) {
-                        Toast.makeText(requireContext(), "This code is inactive", Toast.LENGTH_SHORT).show()
-                        return@addOnSuccessListener
-                    }
-
-                    if (expiresAt != null && expiresAt.toDate().before(java.util.Date())) {
-                        Toast.makeText(requireContext(), "This code has expired", Toast.LENGTH_SHORT).show()
-                        return@addOnSuccessListener
-                    }
-
-                    // Code is valid, proceed with updating points
-                    updateUserPoints(points, code)
-                } else {
-                    Toast.makeText(requireContext(), "Invalid code", Toast.LENGTH_SHORT).show()
-                }
-            }
-    }
-
-    private fun loadUserData() {
-        val userId = auth.currentUser?.uid ?: return
-        firestore.collection("users").document(userId)
-            .get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    val name = document.getString("fullName") ?: "User"
-                    userPoints = document.getLong("points")?.toInt() ?: 0
-
-                    // Update UI
-                    userNameTextView.text = name
-                    loyaltyPointsTextView.text = "$userPoints points"
-
-                    loadTotalLoyaltyPoints()
-                }
-            }
-    }
-
-    private fun updateUserPoints(points: Int, code: String) {
-        val userId = auth.currentUser?.uid ?: return
-        val userRef = firestore.collection("users").document(userId)
-        val redeemedCodeRef = userRef.collection("redeemed_codes").document(code)
-
-        firestore.runTransaction { transaction ->
-            val userSnapshot = transaction.get(userRef)
-            val currentPoints = userSnapshot.getLong("points") ?: 0
-            val newTotalPoints = currentPoints + points
-
-            transaction.update(userRef, "points", newTotalPoints)
-
-            transaction.set(redeemedCodeRef, mapOf(
-                "code" to code,
-                "points" to points,
-                "redeemed_at" to Timestamp.now()
-            ))
-
-            newTotalPoints
-        }.addOnSuccessListener { updatedPoints ->
-            userPoints = updatedPoints.toInt()
-            codeEditText.text.clear()
-
-            // Update RecyclerView dynamically
-            redeemedCodesList.add(Pair(code, points))
-            redeemedCodesAdapter.updateData(redeemedCodesList)
-
-            loadTotalLoyaltyPoints()
         }
     }
 
-    private fun loadRedeemedCodes() {
-        val userId = auth.currentUser?.uid ?: return
-        firestore.collection("users").document(userId)
-            .collection("redeemed_codes").get()
-            .addOnSuccessListener { documents ->
-                val tempList = mutableListOf<Pair<String, Int>>() // Create temp list to avoid modifying original
-                for (document in documents) {
-                    val code = document.getString("code") ?: ""
-                    val points = document.getLong("points")?.toInt() ?: 0
-                    tempList.add(Pair(code, points))
-                }
-                redeemedCodesAdapter.updateData(tempList) // Use tempList to update adapter
+    private suspend fun loadUserPoints() {
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+        supabaseManager.fetchUserPoints(userId) { points, error ->
+            if (error != null) {
+                Toast.makeText(requireContext(), "Error loading user points: $error", Toast.LENGTH_SHORT).show()
+            } else if (points != null) {
+                userPoints = points
+                loyaltyPointsTextView.text = "$userPoints points"
             }
+        }
+    }
+
+    private suspend fun checkIfCodeAlreadyRedeemed(code: String) {
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+        supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
+            if (error != null) {
+                Toast.makeText(requireContext(), "Error checking code: $error", Toast.LENGTH_SHORT).show()
+            } else if (redeemedCodes != null) {
+                if (redeemedCodes.any { it.first == code }) {
+                    Toast.makeText(requireContext(), "Code already redeemed", Toast.LENGTH_SHORT).show()
+                } else {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        validateCode(code)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun validateCode(code: String) {
+        supabaseManager.client.postgrest["reward_codes"]
+            .select {
+                filter {
+                    eq("code", code)
+                }
+            }
+            .decodeSingle<Map<String, Any>>()
+            .let { document ->
+                val points = document["points"] as? Int ?: 0
+                val expiresAt = document["expires_at"] as? Long
+                val isActive = document["is_active"] as? Boolean ?: true
+
+                if (!isActive) {
+                    Toast.makeText(requireContext(), "This code is inactive", Toast.LENGTH_SHORT).show()
+                    return@let
+                }
+
+                if (expiresAt != null && expiresAt < System.currentTimeMillis()) {
+                    Toast.makeText(requireContext(), "This code has expired", Toast.LENGTH_SHORT).show()
+                    return@let
+                }
+
+                // Code is valid, proceed with updating points
+                CoroutineScope(Dispatchers.Main).launch {
+                    updateUserPoints(points, code)
+                }
+            }
+    }
+
+    private suspend fun updateUserPoints(points: Int, code: String) {
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+        supabaseManager.updateUserPoints(userId, userPoints + points) { success, error ->
+            if (success) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    supabaseManager.redeemCode(userId, code, points) { redeemed, redeemError ->
+                        if (redeemed) {
+                            userPoints += points
+                            codeEditText.text.clear()
+
+                            // Update RecyclerView dynamically
+                            redeemedCodesList.add(Pair(code, points))
+                            redeemedCodesAdapter.updateData(redeemedCodesList)
+
+                            CoroutineScope(Dispatchers.Main).launch {
+                                loadUserData()
+                            }
+                        } else {
+                            Toast.makeText(requireContext(), "Error redeeming code: $redeemError", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            } else {
+                Toast.makeText(requireContext(), "Error updating points: $error", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private suspend fun loadRedeemedCodes() {
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+        supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
+            if (error != null) {
+                Toast.makeText(requireContext(), "Error loading redeemed codes: $error", Toast.LENGTH_SHORT).show()
+            } else if (redeemedCodes != null) {
+                redeemedCodesAdapter.updateData(redeemedCodes)
+            }
+        }
     }
 
     private fun showWithdrawPopup() {

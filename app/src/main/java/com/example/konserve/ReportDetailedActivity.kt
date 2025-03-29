@@ -1,13 +1,17 @@
 package com.example.konserve
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
-import com.google.firebase.firestore.FirebaseFirestore
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -19,9 +23,13 @@ class ReportDetailedActivity : AppCompatActivity() {
     private lateinit var reportDescription: TextView
     private lateinit var backButton: ImageView
 
+    private lateinit var supabaseManager: SupabaseManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_report_detail)
+
+        supabaseManager = SupabaseManager(this)
 
         // Initialize views
         reportImage = findViewById(R.id.reportDetailImage)
@@ -50,36 +58,48 @@ class ReportDetailedActivity : AppCompatActivity() {
     }
 
     private fun loadReportDetails(reportId: String) {
-        FirebaseFirestore.getInstance().collection("reports")
-            .document(reportId)
-            .get()
-            .addOnSuccessListener { document ->
-                if (document != null && document.exists()) {
-                    val title = document.getString("title") ?: ""
-                    val description = document.getString("description") ?: ""
-                    val imageUrl = document.getString("imageUrl")
-                    val author = document.getString("author") ?: "Unknown Author"
-                    val date = document.getTimestamp("date")?.toDate() ?: Date()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    supabaseManager.client.postgrest["reports"]
+                        .select {
+                            filter { eq("id", reportId) }
+                        }
+                        .decodeSingle<Map<String, Any>>()
+                }
 
-                    reportTitle.text = title
-                    reportAuthor.text = "By $author"
-                    reportDate.text = formatDate(date)
-                    reportDescription.text = description
+                withContext(Dispatchers.Main) {
+                    reportTitle.text = response["title"] as? String ?: ""
+                    reportAuthor.text = "By " + (response["author"] as? String ?: "Unknown Author")
+                    reportDate.text = formatDate(response["date"] as? String ?: "")
+                    reportDescription.text = response["description"] as? String ?: ""
 
+                    val imageUrl = response["imageUrl"] as? String
                     imageUrl?.let {
-                        Glide.with(this)
+                        Glide.with(this@ReportDetailedActivity)
                             .load(it)
                             .placeholder(R.drawable.placeholder_image)
                             .error(R.drawable.error_image)
                             .into(reportImage)
                     }
                 }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ReportDetailedActivity, "Error loading report: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
+        }
     }
 
-    private fun formatDate(date: Date): String {
-        val formatter = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault())
-        return formatter.format(date)
+    private fun formatDate(dateString: String): String {
+        return try {
+            val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+            val outputFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault())
+            val date = inputFormat.parse(dateString)
+            outputFormat.format(date ?: Date())
+        } catch (e: Exception) {
+            "Unknown Date"
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

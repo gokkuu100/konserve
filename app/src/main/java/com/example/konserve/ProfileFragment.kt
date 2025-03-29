@@ -7,21 +7,21 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.storage.storage
+import io.github.jan.supabase.storage.upload
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ProfileFragment : Fragment() {
 
-    private lateinit var firebaseManager: FirebaseManager
+    private lateinit var supabaseManager: SupabaseManager
     private var imageUri: Uri? = null
 
     private lateinit var profileImage: ImageView
@@ -38,16 +38,11 @@ class ProfileFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.activity_profile, container, false)
-
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        val auth = FirebaseAuth.getInstance()
-        val firestore = FirebaseFirestore.getInstance()
-        val storage = FirebaseStorage.getInstance()
-        firebaseManager = FirebaseManager(auth, firestore)
+        supabaseManager = SupabaseManager(requireContext())
 
         profileImage = view.findViewById(R.id.profile_image)
         editProfileImgBtn = view.findViewById(R.id.edit_profile_image)
@@ -58,116 +53,104 @@ class ProfileFragment : Fragment() {
         saveButton = view.findViewById(R.id.save_button)
         backButton = view.findViewById(R.id.backButton)
 
-        val currentUser = auth.currentUser
-        currentUser?.let {
-            loadUserData(it.uid)
+        CoroutineScope(Dispatchers.IO).launch {
+            val userId = supabaseManager.getCurrentUser()
+            userId?.let { loadUserData(it) }
         }
 
         setFieldsEditable(false)
 
-        // Set up onClick listeners to make fields editable when clicked
-        userNameEditText.setOnClickListener { setFieldsEditable(true) }
-        phoneEditText.setOnClickListener { setFieldsEditable(true) }
-        genderEditText.setOnClickListener { setFieldsEditable(true) }
-        addressEditText.setOnClickListener { setFieldsEditable(true) }
+        listOf(userNameEditText, phoneEditText, genderEditText, addressEditText).forEach {
+            it.setOnClickListener { setFieldsEditable(true) }
+        }
 
         editProfileImgBtn.setOnClickListener {
-            val intent = Intent()
-            intent.type = "image/*"
-            intent.action = Intent.ACTION_GET_CONTENT
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }
             imagePickerLauncher.launch(Intent.createChooser(intent, "Select Picture"))
         }
 
         saveButton.setOnClickListener {
-            currentUser?.let {
-                saveUserData(it.uid)
+            CoroutineScope(Dispatchers.IO).launch {
+                val userId = supabaseManager.getCurrentUser()
+                userId?.let { saveUserData(it) }
             }
         }
 
-        // Find the back button and set its click listener
-        backButton.setOnClickListener {
-            // This will pop the current fragment off the back stack
-            // and return to the previous fragment (HomeFragment)
-            parentFragmentManager.popBackStack()
-        }
+        backButton.setOnClickListener { parentFragmentManager.popBackStack() }
     }
 
     private fun setFieldsEditable(editable: Boolean) {
-        userNameEditText.isFocusableInTouchMode = editable
-        userNameEditText.isFocusable = editable
-
-        phoneEditText.isFocusableInTouchMode = editable
-        phoneEditText.isFocusable = editable
-
-        genderEditText.isFocusableInTouchMode = editable
-        genderEditText.isFocusable = editable
-
-        addressEditText.isFocusableInTouchMode = editable
-        addressEditText.isFocusable = editable
+        listOf(userNameEditText, phoneEditText, genderEditText, addressEditText).forEach {
+            it.isFocusableInTouchMode = editable
+            it.isFocusable = editable
+        }
     }
 
-    private fun loadUserData(userId: String) {
-        firebaseManager.getUserData(userId) { data, error ->
-            if (error != null) {
-                Toast.makeText(requireContext(), "Error loading data: $error", Toast.LENGTH_SHORT).show()
-            } else if (data != null) {
-                userNameEditText.setText(data["fullName"] as? String ?: "")
-                phoneEditText.setText(data["phone"] as? String ?: "")
-                genderEditText.setText(data["gender"] as? String ?: "")
-                addressEditText.setText(data["address"] as? String ?: "")
-
-                loadProfileImage(userId)
+    private suspend fun loadUserData(userId: String) {
+        supabaseManager.getUserData(userId) { data, error ->
+            CoroutineScope(Dispatchers.Main).launch {
+                if (data != null) {
+                    userNameEditText.setText(data["full_name"] as? String ?: "")
+                    phoneEditText.setText(data["phone"] as? String ?: "")
+                    genderEditText.setText(data["gender"] as? String ?: "")
+                    addressEditText.setText(data["address"] as? String ?: "")
+                    loadProfileImage(userId)
+                } else {
+                    Toast.makeText(requireContext(), error ?: "Error loading data", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
-    private fun loadProfileImage(userId: String) {
-        val storageRef = FirebaseStorage.getInstance().reference.child("profile_images/$userId.jpg")
-        storageRef.downloadUrl.addOnSuccessListener { uri ->
-            Glide.with(this)
-                .load(uri)
-                .into(profileImage)
-        }.addOnFailureListener {
-            profileImage.setImageResource(R.drawable.avatar)
+    private suspend fun loadProfileImage(userId: String) {
+        val imageUrl = "https://your-storage-url/profile-images/$userId.jpg"
+        withContext(Dispatchers.Main) {
+            Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
         }
     }
 
-    private fun saveUserData(userId: String) {
-        val updatedData = hashMapOf(
-            "fullName" to userNameEditText.text.toString(),
+    private suspend fun saveUserData(userId: String) {
+        val updatedData = mapOf(
+            "full_name" to userNameEditText.text.toString(),
             "phone" to phoneEditText.text.toString(),
             "gender" to genderEditText.text.toString(),
             "address" to addressEditText.text.toString()
         )
 
-        firebaseManager.firestore.collection("users").document(userId)
-            .set(updatedData)
-            .addOnSuccessListener {
-                Toast.makeText(requireContext(), "Profile updated successfully!", Toast.LENGTH_SHORT).show()
-                uploadProfileImage(userId)
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(requireContext(), "Failed to update profile: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+        supabaseManager.client.postgrest["users"].update(updatedData) { filter { eq("user_id", userId) } }
+
+        withContext(Dispatchers.Main) {
+            Toast.makeText(requireContext(), "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+            uploadProfileImage(userId)
+        }
     }
 
     private fun uploadProfileImage(userId: String) {
-        imageUri?.let {
-            val ref = FirebaseStorage.getInstance().reference.child("profile_images/$userId.jpg")
-            ref.putFile(it)
-                .addOnSuccessListener {
-                    Toast.makeText(requireContext(), "Profile image uploaded successfully!", Toast.LENGTH_SHORT).show()
+        imageUri?.let { uri ->
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val inputStream = requireContext().contentResolver.openInputStream(uri)
+                    val byteArray = inputStream!!.readBytes() // Convert InputStream to ByteArray
+                    supabaseManager.client.storage
+                        .from("profile-images")
+                        .upload("$userId.jpg", byteArray)
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Profile image uploaded successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Failed to upload profile image: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
-                .addOnFailureListener { e ->
-                    Toast.makeText(requireContext(), "Failed to upload profile image: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+            }
         }
     }
 
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null && result.data?.data != null) {
+        if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
             imageUri = result.data?.data
             profileImage.setImageURI(imageUri)
         }
