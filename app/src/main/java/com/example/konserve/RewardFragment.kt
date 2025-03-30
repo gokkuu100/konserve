@@ -81,16 +81,17 @@ class RewardFragment : Fragment() {
 
     private suspend fun loadUserData() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
-        supabaseManager.getUserData(userId) { userData, error ->
-            if (error != null) {
-                Toast.makeText(requireContext(), "Error loading user data: $error", Toast.LENGTH_SHORT).show()
-            } else if (userData != null) {
-                val name = userData["full_name"] as? String ?: "User"
-                userPoints = userData["points"] as? Int ?: 0
 
-                // Update UI
-                userNameTextView.text = name
-                loyaltyPointsTextView.text = "$userPoints points"
+        supabaseManager.getUserData(userId) { user, error ->
+            CoroutineScope(Dispatchers.Main).launch {
+                if (error != null) {
+                    Toast.makeText(requireContext(), "Error loading user data: $error", Toast.LENGTH_SHORT).show()
+                } else if (user != null) {
+                    // Directly access User properties
+                    userNameTextView.text = user.full_name ?: "User"
+                    userPoints = user.reward_points ?: 0
+                    loyaltyPointsTextView.text = "$userPoints points"
+                }
             }
         }
     }

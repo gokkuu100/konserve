@@ -17,6 +17,7 @@ import android.icu.util.TimeUnit
 import android.net.Uri
 import android.util.Log
 import com.example.konserve.models.Report
+import com.example.konserve.models.User
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
@@ -45,6 +46,36 @@ object Config {
     }
 }
 
+// Custom HTTP client with extended timeouts
+private val httpClient = HttpClient(OkHttp) {
+    engine {
+        // Configure OkHttp engine with extended timeouts
+        config {
+            connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            retryOnConnectionFailure(true)
+        }
+    }
+
+    // Add HTTP timeout plugin
+    install(HttpTimeout) {
+        requestTimeoutMillis = 60000 // 60 seconds
+        connectTimeoutMillis = 60000 // 60 seconds
+        socketTimeoutMillis = 60000 // 60 seconds
+    }
+
+    // Add logging for debugging
+    install(Logging) {
+        level = LogLevel.ALL
+        logger = object : Logger {
+            override fun log(message: String) {
+                Log.d("SupabaseHTTP", message)
+            }
+        }
+    }
+}
+
 
 
 class SupabaseManager(context: Context) {
@@ -52,19 +83,6 @@ class SupabaseManager(context: Context) {
     private val supabaseUrl = Config.getProperty(context, "SUPABASE_URL")
     private val supabaseKey = Config.getProperty(context, "SUPABASE_KEY")
 
-    private val httpClient = HttpClient(OkHttp) {
-        engine {
-            config {
-                connectTimeout(50, java.util.concurrent.TimeUnit.SECONDS)
-                readTimeout(50, java.util.concurrent.TimeUnit.SECONDS)
-                writeTimeout(50, java.util.concurrent.TimeUnit.SECONDS)
-            }
-        }
-        install(Logging) {
-            logger = Logger.DEFAULT
-            level = LogLevel.ALL  // Logs everything (headers, body, etc.)
-        }
-    }
 
     val client: SupabaseClient = createSupabaseClient(
         supabaseUrl = supabaseUrl,
@@ -76,7 +94,6 @@ class SupabaseManager(context: Context) {
         install(Storage)
         install(Realtime)
 
-        httpEngine = httpClient.engine
 
     }
 
@@ -203,13 +220,25 @@ class SupabaseManager(context: Context) {
     // Login User
     suspend fun loginUser(email: String, password: String, onComplete: (Boolean, String?) -> Unit) {
         try {
-            client.auth.signInWith(Email) {
+            client.auth.signInWith(Email) { // Sign in the user
                 this.email = email
                 this.password = password
             }
-            onComplete(true, null)
+
+            // Get session & user from result
+            val session = client.auth.currentSessionOrNull()  // Fetch session
+            val user = client.auth.currentUserOrNull()  // Fetch logged-in user
+
+            if (session != null && user != null) {
+                Log.d("SupabaseDebug", "Login successful: ${user.id}")
+                onComplete(true, null)
+            } else {
+                Log.e("SupabaseDebug", "Login failed: No session or user returned")
+                onComplete(false, "Login failed. No session or user returned.")
+            }
         } catch (e: Exception) {
-            onComplete(false, e.localizedMessage ?: "Login failed")
+            Log.e("SupabaseDebug", "Error during login: ${e.localizedMessage}", e)
+            onComplete(false, e.localizedMessage ?: "Unknown error")
         }
     }
 
@@ -223,7 +252,7 @@ class SupabaseManager(context: Context) {
     }
 
     // Get User Data
-    suspend fun getUserData(userId: String, onComplete: (Map<String, Any>?, String?) -> Unit) {
+    suspend fun getUserData(userId: String, onComplete: (User?, String?) -> Unit) {
         try {
             val response = withContext(Dispatchers.IO) {
                 client.postgrest["users"]
@@ -232,7 +261,7 @@ class SupabaseManager(context: Context) {
                             eq("user_id", userId)
                         }
                     }
-                    .decodeSingle<Map<String, Any>>()
+                    .decodeSingle<User>()
             }
             onComplete(response, null)
         } catch (e: Exception) {

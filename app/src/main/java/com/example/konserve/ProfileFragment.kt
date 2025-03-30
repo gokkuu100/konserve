@@ -87,14 +87,14 @@ class ProfileFragment : Fragment() {
     }
 
     private suspend fun loadUserData(userId: String) {
-        supabaseManager.getUserData(userId) { data, error ->
+        supabaseManager.getUserData(userId) { user, error ->
             CoroutineScope(Dispatchers.Main).launch {
-                if (data != null) {
-                    userNameEditText.setText(data["full_name"] as? String ?: "")
-                    phoneEditText.setText(data["phone"] as? String ?: "")
-                    genderEditText.setText(data["gender"] as? String ?: "")
-                    addressEditText.setText(data["address"] as? String ?: "")
-                    loadProfileImage(userId)
+                if (user != null) {
+                    userNameEditText.setText(user.full_name ?: "")
+                    phoneEditText.setText(user.phone ?: "")
+                    genderEditText.setText(user.gender ?: "")
+                    addressEditText.setText(user.address ?: "")
+                    loadProfileImage(user.imageUrl)
                 } else {
                     Toast.makeText(requireContext(), error ?: "Error loading data", Toast.LENGTH_SHORT).show()
                 }

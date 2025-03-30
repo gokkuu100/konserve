@@ -7,16 +7,14 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.example.konserve.models.Message
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import de.hdodenhof.circleimageview.CircleImageView
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
-data class Message(
-    val username: String = "",
-    val text: String = "",
-    val timestamp: Long = 0L
-)
 
 class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) {
     private var currentUserId: String? = null
@@ -35,9 +33,14 @@ class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) 
             }
         }
 
-        private fun formatTimestamp(timestamp: Long): String {
-            val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
-            return sdf.format(Date(timestamp))
+        fun formatTimestamp(timestamp: String): String {
+            return try {
+                val zonedDateTime = ZonedDateTime.parse(timestamp)  // Parses the ISO 8601 string
+                val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")  // Example: "30 Mar 2025, 04:08 PM"
+                zonedDateTime.format(formatter)
+            } catch (e: Exception) {
+                "Invalid Date"  // Handle parsing errors
+            }
         }
     }
 

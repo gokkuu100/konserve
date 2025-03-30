@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.google.services)
     id("org.jetbrains.kotlin.kapt")
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 android {
@@ -119,6 +120,7 @@ dependencies {
     // Coroutines
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     // Lifecycle components
     implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")

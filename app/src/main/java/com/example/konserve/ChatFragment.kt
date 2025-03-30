@@ -12,6 +12,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.example.konserve.models.Message
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.realtime.channel
@@ -22,6 +23,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.Serializable
 
 class ChatFragment : Fragment() {
 
@@ -154,7 +159,8 @@ class ChatFragment : Fragment() {
                             Log.e("ChatFragment", "Failed to retrieve user data: $error")
                             Toast.makeText(requireContext(), "Failed to retrieve user data: $error", Toast.LENGTH_SHORT).show()
                         } else if (userData != null) {
-                            val fullName = userData["full_name"] as? String ?: "Anonymous"
+                            Log.d("ChatFragment", "User data retrieved successfully: $userData")
+                            val fullName = userData.full_name as? String ?: "Anonymous"
 
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
@@ -164,7 +170,7 @@ class ChatFragment : Fragment() {
                                         "timestamp" to System.currentTimeMillis(),
                                         "user_id" to currentUserId
                                     )
-
+                                    Log.d("ChatFragment", "Sending message: $message")
                                     supabaseManager.client.postgrest["messages"].insert(message)
 
                                     withContext(Dispatchers.Main) {
@@ -195,19 +201,21 @@ class ChatFragment : Fragment() {
     private fun loadMessages() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                val messages = withContext(Dispatchers.IO) {
+                val messages: List<Message> = withContext(Dispatchers.IO) {
                     supabaseManager.client.postgrest["messages"]
                         .select {
                             order("timestamp", Order.ASCENDING)
                         }
-                        .decodeList<Message>()
+                        .decodeList<Message>()  // Ensure Message is serializable
                 }
+                Log.d("ChatFragment", "Messages loaded: ${messages.size} messages")
                 swipeRefreshLayout.isRefreshing = false
                 chatAdapter.submitList(messages) {
                     chatRecyclerView.scrollToPosition(messages.size - 1)
                 }
             } catch (e: Exception) {
                 swipeRefreshLayout.isRefreshing = false
+                Log.e("ChatFragment", "Error loading messages: ${e.localizedMessage}", e)
                 Toast.makeText(requireContext(), "Error loading messages!", Toast.LENGTH_SHORT).show()
             }
         }
