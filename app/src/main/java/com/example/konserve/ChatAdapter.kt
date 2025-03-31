@@ -37,12 +37,14 @@ class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) 
 
         fun formatTimestamp(timestamp: String): String {
             return try {
-                val instant = Instant.parse(timestamp)  // Convert Long to Instant
-                val zonedDateTime = instant.atZone(ZoneId.systemDefault())  // Convert to ZonedDateTime
-                val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")  // Format the date
-                zonedDateTime.format(formatter)  // Return formatted string
+                val correctedTimestamp = timestamp.replace(" ", "T").substringBefore("+") + "Z"
+
+                val instant = Instant.parse(correctedTimestamp)
+                val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+                val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")
+                zonedDateTime.format(formatter)
             } catch (e: Exception) {
-                "Invalid Date"  // Handle errors gracefully
+                "Invalid Date"
             }
         }
     }

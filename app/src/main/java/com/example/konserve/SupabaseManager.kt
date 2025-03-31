@@ -437,7 +437,7 @@ class SupabaseManager(context: Context) {
                         "user_id" to userId,
                         "code" to code,
                         "points" to points,
-                        "redeemed_at" to System.currentTimeMillis()
+                        "redeemed_at" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
                     )
                 )
             }
