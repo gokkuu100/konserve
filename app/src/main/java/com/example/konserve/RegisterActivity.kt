@@ -29,7 +29,7 @@ class RegisterActivity : AppCompatActivity() {
 
         registerButton.setOnClickListener {
             val fullName = fullNameEditText.text.toString()
-            val email = emailEditText.text.toString().trim()
+            val email = emailEditText.text.toString().trim().lowercase()
             val password = passwordEditText.text.toString()
             val confirmPassword = confirmPasswordEditText.text.toString()
 
@@ -59,6 +59,7 @@ class RegisterActivity : AppCompatActivity() {
                     CoroutineScope(Dispatchers.Main).launch {
                         supabaseManager.registerUser(email, password, fullName) { success, message ->
                             if (success) {
+                                Toast.makeText(this@RegisterActivity, "Registration successful!", Toast.LENGTH_SHORT).show()
                                 startActivity(Intent(this@RegisterActivity, LoginActivity::class.java))
                                 finish()
                             } else {

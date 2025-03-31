@@ -27,6 +27,8 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.Serializable
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 class ChatFragment : Fragment() {
 
@@ -164,11 +166,11 @@ class ChatFragment : Fragment() {
 
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
-                                    val message = mapOf(
-                                        "username" to fullName,
-                                        "text" to messageText,
-                                        "timestamp" to System.currentTimeMillis(),
-                                        "user_id" to currentUserId
+                                    val message = Message(
+                                        timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                                        username = fullName,
+                                        text = messageText,
+                                        user_id = currentUserId
                                     )
                                     Log.d("ChatFragment", "Sending message: $message")
                                     supabaseManager.client.postgrest["messages"].insert(message)

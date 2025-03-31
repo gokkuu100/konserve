@@ -16,6 +16,7 @@ import android.content.Context
 import android.icu.util.TimeUnit
 import android.net.Uri
 import android.util.Log
+import android.util.Patterns
 import com.example.konserve.models.Report
 import com.example.konserve.models.User
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
@@ -29,12 +30,14 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
-import java.io.InputStream
 import java.util.Properties
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.tasks.await
 import io.ktor.client.plugins.logging.*
+import kotlinx.serialization.json.Json
+import java.time.format.DateTimeFormatter
+import java.time.Instant
 
 
 object Config {
@@ -183,34 +186,76 @@ class SupabaseManager(context: Context) {
         const val REQUEST_CODE_GOOGLE_SIGN_IN = 1001
     }
 
-    // Register User
+    private fun isValidEmail(email: String): Boolean {
+        return Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
+    // Function to check if an email is already registered
+    suspend fun isEmailRegistered(email: String): Boolean {
+        return try {
+            val response = client.auth.signInWith(Email) {
+                this.email = email
+                this.password = "dummy_password"  // Dummy password to check if email exists
+            }
+            response != null  // If login succeeds, email exists
+        } catch (e: Exception) {
+            false  // If error occurs (e.g., invalid login), email is not registered
+        }
+    }
+
     suspend fun registerUser(email: String, password: String, fullName: String, onComplete: (Boolean, String?) -> Unit) {
         try {
+            // Validate email format
+            if (!isValidEmail(email)) {
+                onComplete(false, "Invalid email format")
+                return
+            }
+
+            // Check if email is already registered
+            if (isEmailRegistered(email)) {
+                onComplete(false, "Email is already registered. Try logging in.")
+                return
+            }
+
             Log.d("SupabaseDebug", "Attempting to register user: $email")
 
-            val user = client.auth.signUpWith(Email) {
-                this.email = email
+            val sanitizedEmail = email.trim().lowercase()
+
+            // Register user with Supabase Auth
+            val result = client.auth.signUpWith(Email) {
+                this.email = sanitizedEmail
                 this.password = password
             }
 
-            user?.let {
-                val userData = mapOf(
-                    "user_id" to it.id,
-                    "email" to email,
-                    "full_name" to fullName,
-                    "created_at" to System.currentTimeMillis(),
-                    "reward_points" to 0
-                )
+            Log.d("SupabaseDebug", "Sign-up response: $result")
 
-                withContext(Dispatchers.IO) {
-                    client.postgrest["users"].insert(userData)
-                }
-                Log.d("SupabaseDebug", "User registration successful: ${it.id}")
-                onComplete(true, null)
-            } ?: run {
-                Log.e("SupabaseDebug", "Registration failed: User object is null")
+            // Fetch the current user ID from Supabase Auth
+            val userId = client.auth.currentUserOrNull()?.id
+            if (userId == null) {
+                Log.e("SupabaseDebug", "Registration failed: User ID not found")
                 onComplete(false, "Registration failed")
+                return
             }
+
+            // Create a User object
+            val newUser = User(
+                user_id = userId,
+                full_name = fullName,
+                email = sanitizedEmail,
+                created_at = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                reward_points = 0
+            )
+
+            // Convert User object to JSON string for serialization
+            val userJson = Json.encodeToString(newUser)
+
+            // Insert into Supabase Users table
+            withContext(Dispatchers.IO) {
+                val response = client.postgrest["users"].insert(newUser)
+                Log.d("SupabaseDebug", "User inserted into database: $response")
+            }
+
+            onComplete(true, null)
         } catch (e: Exception) {
             Log.e("SupabaseDebug", "Error during registration: ${e.localizedMessage}", e)
             onComplete(false, e.localizedMessage ?: "Unknown error")

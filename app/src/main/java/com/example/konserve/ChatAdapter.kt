@@ -12,6 +12,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import de.hdodenhof.circleimageview.CircleImageView
+import java.time.Instant
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -35,11 +37,12 @@ class ChatAdapter : ListAdapter<Message, RecyclerView.ViewHolder>(DiffCallback) 
 
         fun formatTimestamp(timestamp: String): String {
             return try {
-                val zonedDateTime = ZonedDateTime.parse(timestamp)  // Parses the ISO 8601 string
-                val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")  // Example: "30 Mar 2025, 04:08 PM"
-                zonedDateTime.format(formatter)
+                val instant = Instant.parse(timestamp)  // Convert Long to Instant
+                val zonedDateTime = instant.atZone(ZoneId.systemDefault())  // Convert to ZonedDateTime
+                val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")  // Format the date
+                zonedDateTime.format(formatter)  // Return formatted string
             } catch (e: Exception) {
-                "Invalid Date"  // Handle parsing errors
+                "Invalid Date"  // Handle errors gracefully
             }
         }
     }

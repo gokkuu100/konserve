@@ -8,9 +8,9 @@ data class User(
     val full_name: String? = null,
     val imageUrl: String = "",
     val email: String = "",
-    val reward_points: Int = 0,  // Changed from NumericType to Int
+    val reward_points: Int? = null,  // Changed from NumericType to Int
     val phone: String? = null,
     val gender: String? = null,
-    val address: String? = null
-
-)
+    val address: String? = null,
+    val created_at: String,
+    )
