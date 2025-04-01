@@ -17,8 +17,10 @@ import android.icu.util.TimeUnit
 import android.net.Uri
 import android.util.Log
 import android.util.Patterns
+import com.example.konserve.models.RedeemedCode
 import com.example.konserve.models.Report
 import com.example.konserve.models.User
+import com.example.konserve.models.UserPoints
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
@@ -35,6 +37,8 @@ import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.tasks.await
 import io.ktor.client.plugins.logging.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.time.format.DateTimeFormatter
 import java.time.Instant
@@ -372,30 +376,34 @@ class SupabaseManager(context: Context) {
         }
     }
 
-    suspend fun fetchUserPoints(userId: String, onComplete: (Int?, String?) -> Unit) {
-        try {
-            val response = withContext(Dispatchers.IO) {
-                client.postgrest["users"]
-                    .select {
-                        filter {
-                            eq("user_id", userId)
-                        }
-                    }
-                    .decodeSingle<Map<String, Any>>()
+    fun fetchUserPoints(userId: String, callback: (Int?, Exception?) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = client.postgrest["users"]
+                    .select { filter { eq("user_id", userId) } }
+                    .decodeSingle<User>()  // ✅ Use properly serialized class
+
+                val points = response.reward_points
+
+                withContext(Dispatchers.Main) {
+                    callback(points, null)
+                }
+            } catch (e: Exception) {
+                Log.e("SupabaseManager", "Error fetching user points", e)
+                withContext(Dispatchers.Main) {
+                    callback(null, e)
+                }
             }
-            val points = response["points"] as? Int ?: 0
-            onComplete(points, null)
-        } catch (e: Exception) {
-            onComplete(null, e.localizedMessage ?: "Error fetching user points")
         }
     }
+
 
     // Update user points
     suspend fun updateUserPoints(userId: String, points: Int, onComplete: (Boolean, String?) -> Unit) {
         try {
             withContext(Dispatchers.IO) {
                 client.postgrest["users"]
-                    .update(mapOf("points" to points)) {
+                    .update(mapOf("reward_points" to points)) {
                         filter {
                             eq("user_id", userId)
                         }
@@ -403,6 +411,7 @@ class SupabaseManager(context: Context) {
             }
             onComplete(true, null)
         } catch (e: Exception) {
+            Log.e("SupabaseManager", "Error updating user points", e)
             onComplete(false, e.localizedMessage ?: "Error updating user points")
         }
     }
@@ -417,32 +426,36 @@ class SupabaseManager(context: Context) {
                             eq("user_id", userId)
                         }
                     }
-                    .decodeList<Map<String, Any>>()
+                    .decodeList<RedeemedCode>()  // ✅ Use the data class
             }
-            val redeemedCodes = response.map {
-                Pair(it["code"] as String, it["points"] as Int)
-            }
+
+            val redeemedCodes = response.map { Pair(it.code, it.points) }
+
             onComplete(redeemedCodes, null)
         } catch (e: Exception) {
+            Log.e("SupabaseManager", "Error fetching redeemed codes", e)
             onComplete(null, e.localizedMessage ?: "Error fetching redeemed codes")
         }
     }
 
-    // Redeem code
     suspend fun redeemCode(userId: String, code: String, points: Int, onComplete: (Boolean, String?) -> Unit) {
         try {
+            val redeemedCode = RedeemedCode(
+                user_id = userId,
+                code = code,
+                points = points,
+                redeemed_at = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+            )
+
             withContext(Dispatchers.IO) {
                 client.postgrest["redeemed_codes"].insert(
-                    mapOf(
-                        "user_id" to userId,
-                        "code" to code,
-                        "points" to points,
-                        "redeemed_at" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
-                    )
+                    json.encodeToString(RedeemedCode.serializer(), redeemedCode)  // ✅ Serialize explicitly
                 )
             }
+
             onComplete(true, null)
         } catch (e: Exception) {
+            Log.e("SupabaseManager", "Error redeeming code", e)
             onComplete(false, e.localizedMessage ?: "Error redeeming code")
         }
     }

@@ -2,6 +2,7 @@ package com.example.konserve
 
 import com.example.konserve.adapters.RedeemedCodesAdapter
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -100,10 +101,12 @@ class RewardFragment : Fragment() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
         supabaseManager.fetchUserPoints(userId) { points, error ->
             if (error != null) {
+                Log.e("RewardFragment", "Error fetching user points, $error")
                 Toast.makeText(requireContext(), "Error loading user points: $error", Toast.LENGTH_SHORT).show()
             } else if (points != null) {
                 userPoints = points
                 loyaltyPointsTextView.text = "$userPoints points"
+                Log.d("RewardFragment", "User points successfully loaded: $userPoints")
             }
         }
     }
@@ -139,16 +142,19 @@ class RewardFragment : Fragment() {
                 val isActive = document["is_active"] as? Boolean ?: true
 
                 if (!isActive) {
+                    Log.w("RewardFragment", "Attempt to redeem an inactive code: $code")
                     Toast.makeText(requireContext(), "This code is inactive", Toast.LENGTH_SHORT).show()
                     return@let
                 }
 
                 if (expiresAt != null && expiresAt < System.currentTimeMillis()) {
+                    Log.w("RewardFragment", "Attempt to redeem expired code: $code")
                     Toast.makeText(requireContext(), "This code has expired", Toast.LENGTH_SHORT).show()
                     return@let
                 }
 
                 // Code is valid, proceed with updating points
+                Log.d("RewardFragment", "Valid code found: $code, points: $points")
                 CoroutineScope(Dispatchers.Main).launch {
                     updateUserPoints(points, code)
                 }
@@ -165,6 +171,7 @@ class RewardFragment : Fragment() {
                             userPoints += points
                             codeEditText.text.clear()
 
+                            Log.d("RewardFragment", "Successfully redeemed code: $code for $points points")
                             // Update RecyclerView dynamically
                             redeemedCodesList.add(Pair(code, points))
                             redeemedCodesAdapter.updateData(redeemedCodesList)
@@ -173,6 +180,7 @@ class RewardFragment : Fragment() {
                                 loadUserData()
                             }
                         } else {
+                            Log.e("RewardFragment", "Error redeeming code: $code")
                             Toast.makeText(requireContext(), "Error redeeming code: $redeemError", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -187,8 +195,10 @@ class RewardFragment : Fragment() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
         supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
             if (error != null) {
+                Log.d("RewardFragment", "Redeemed codes loaded successfully")
                 Toast.makeText(requireContext(), "Error loading redeemed codes: $error", Toast.LENGTH_SHORT).show()
             } else if (redeemedCodes != null) {
+                Log.d("RewardFragment", "Redeemed codes loaded successfully")
                 redeemedCodesAdapter.updateData(redeemedCodes)
             }
         }
