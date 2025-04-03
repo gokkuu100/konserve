@@ -1,12 +1,13 @@
 package com.example.konserve.models
 
-import java.time.Instant
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Report(
-    var id: String = "",
+    var id: Int = 0,
     val title: String = "",
     val description: String = "",
     val imageUrl: String = "",
     val author: String? = null,
-    val date: Instant = Instant.now()
+    val date: String
 )

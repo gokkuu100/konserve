@@ -12,11 +12,14 @@ import android.widget.*
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.konserve.models.RewardCode
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 class RewardFragment : Fragment() {
 
@@ -99,14 +102,32 @@ class RewardFragment : Fragment() {
 
     private suspend fun loadUserPoints() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
-        supabaseManager.fetchUserPoints(userId) { points, error ->
+        
+        // First, fetch redeemed codes to calculate total points
+        supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
             if (error != null) {
-                Log.e("RewardFragment", "Error fetching user points, $error")
-                Toast.makeText(requireContext(), "Error loading user points: $error", Toast.LENGTH_SHORT).show()
-            } else if (points != null) {
-                userPoints = points
+                Log.e("RewardFragment", "Error fetching redeemed codes: $error")
+                Toast.makeText(requireContext(), "Error loading redeemed codes: $error", Toast.LENGTH_SHORT).show()
+            } else if (redeemedCodes != null) {
+                // Calculate total points from redeemed codes
+                val totalPoints = redeemedCodes.sumOf { it.second }
+                Log.d("RewardFragment", "Calculated total points from redeemed codes: $totalPoints")
+                
+                // Update UI with calculated points
+                userPoints = totalPoints
                 loyaltyPointsTextView.text = "$userPoints points"
-                Log.d("RewardFragment", "User points successfully loaded: $userPoints")
+                Log.d("RewardFragment", "User points loaded from redeemed codes: $userPoints")
+                
+                // Update points in database
+                CoroutineScope(Dispatchers.IO).launch {
+                    supabaseManager.updateUserPoints(userId, totalPoints) { success, updateError ->
+                        if (success) {
+                            Log.d("RewardFragment", "Successfully updated user points in DB: $totalPoints")
+                        } else {
+                            Log.e("RewardFragment", "Error updating user points in DB: $updateError")
+                        }
+                    }
+                }
             }
         }
     }
@@ -129,64 +150,100 @@ class RewardFragment : Fragment() {
     }
 
     private suspend fun validateCode(code: String) {
-        supabaseManager.client.postgrest["reward_codes"]
+        val rewardCodes = supabaseManager.client.postgrest["reward_codes"]
             .select {
                 filter {
                     eq("code", code)
                 }
             }
-            .decodeSingle<Map<String, Any>>()
-            .let { document ->
-                val points = document["points"] as? Int ?: 0
-                val expiresAt = document["expires_at"] as? Long
-                val isActive = document["is_active"] as? Boolean ?: true
+            .decodeList<RewardCode>()
 
-                if (!isActive) {
-                    Log.w("RewardFragment", "Attempt to redeem an inactive code: $code")
-                    Toast.makeText(requireContext(), "This code is inactive", Toast.LENGTH_SHORT).show()
-                    return@let
-                }
+        Log.d("RewardFragment", "Fetched Reward Codes: $rewardCodes")
+        if (rewardCodes.isEmpty()) {
+            Log.e("RewardFragment", "No reward code found for: $code")
+            Toast.makeText(requireContext(), "Invalid reward code", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-                if (expiresAt != null && expiresAt < System.currentTimeMillis()) {
-                    Log.w("RewardFragment", "Attempt to redeem expired code: $code")
-                    Toast.makeText(requireContext(), "This code has expired", Toast.LENGTH_SHORT).show()
-                    return@let
-                }
+        val rewardCode = rewardCodes.first()
+        Log.d("RewardFragment", "Reward code details: $rewardCode")
+        val points = rewardCode.points
+        val expiresAt = rewardCode.expires_at
+        val isActive = rewardCode.is_active
 
-                // Code is valid, proceed with updating points
-                Log.d("RewardFragment", "Valid code found: $code, points: $points")
-                CoroutineScope(Dispatchers.Main).launch {
-                    updateUserPoints(points, code)
+        if (!isActive) {
+            Log.w("RewardFragment", "Attempt to redeem an inactive code: $code")
+            Toast.makeText(requireContext(), "This code is inactive", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+        val expiresAtMillis = Instant.from(formatter.parse(rewardCode.expires_at)).toEpochMilli()
+
+        if (expiresAtMillis < System.currentTimeMillis()) {
+            Log.w("RewardFragment", "Attempt to redeem expired code: ${rewardCode.code}")
+            Toast.makeText(requireContext(), "This code has expired", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        Log.d("RewardFragment", "Valid code found: $code, points: $points")
+
+        // Fetch userId before redeeming
+        val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
+
+        CoroutineScope(Dispatchers.Main).launch {
+            supabaseManager.redeemCode(userId, code, points) { redeemed, redeemError ->
+                if (redeemed) {
+                    codeEditText.text.clear()
+                    Toast.makeText(requireContext(), "Redeemed", Toast.LENGTH_SHORT).show()
+
+                    // Refresh user points after redeeming a code
+                    CoroutineScope(Dispatchers.Main).launch {
+                        updateUserPoints()
+                    }
+
+                    // Update RecyclerView dynamically
+                    redeemedCodesList.add(Pair(code, points))
+                    redeemedCodesAdapter.updateData(redeemedCodesList)
+                    redeemedCodesAdapter.notifyDataSetChanged()
+                } else {
+                    Toast.makeText(requireContext(), "Error redeeming code: $redeemError", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
     }
 
-    private suspend fun updateUserPoints(points: Int, code: String) {
+    private suspend fun updateUserPoints() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
-        supabaseManager.updateUserPoints(userId, userPoints + points) { success, error ->
-            if (success) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    supabaseManager.redeemCode(userId, code, points) { redeemed, redeemError ->
-                        if (redeemed) {
-                            userPoints += points
-                            codeEditText.text.clear()
 
-                            Log.d("RewardFragment", "Successfully redeemed code: $code for $points points")
-                            // Update RecyclerView dynamically
-                            redeemedCodesList.add(Pair(code, points))
-                            redeemedCodesAdapter.updateData(redeemedCodesList)
+        supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
+            if (error != null) {
+                Log.e("RewardFragment", "Error fetching redeemed codes: $error")
+                Toast.makeText(requireContext(), "Error updating points: $error", Toast.LENGTH_SHORT).show()
+                return@fetchRedeemedCodes
+            }
 
-                            CoroutineScope(Dispatchers.Main).launch {
-                                loadUserData()
-                            }
-                        } else {
-                            Log.e("RewardFragment", "Error redeeming code: $code")
-                            Toast.makeText(requireContext(), "Error redeeming code: $redeemError", Toast.LENGTH_SHORT).show()
-                        }
+            Log.d("RewardFragment", "Fetched redeemed codes: $redeemedCodes")
+
+            val totalPoints = redeemedCodes?.sumOf { it.second } ?: 0
+            Log.d("RewardFragment", "Computed total points: $totalPoints")
+
+            // Update UI
+            CoroutineScope(Dispatchers.Main).launch {
+                userPoints = totalPoints
+                loyaltyPointsTextView.text = "$userPoints points"
+                Log.d("RewardFragment", "Updated user points in UI: $userPoints")
+            }
+
+            // Update DB
+            CoroutineScope(Dispatchers.IO).launch {
+                supabaseManager.updateUserPoints(userId, totalPoints) { success, updateError ->
+                    if (success) {
+                        Log.d("RewardFragment", "Successfully updated user points in DB: $totalPoints")
+                    } else {
+                        Log.e("RewardFragment", "Error updating user points in DB: $updateError")
                     }
                 }
-            } else {
-                Toast.makeText(requireContext(), "Error updating points: $error", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -195,10 +252,13 @@ class RewardFragment : Fragment() {
         val userId = withContext(Dispatchers.IO) { supabaseManager.getCurrentUser() } ?: return
         supabaseManager.fetchRedeemedCodes(userId) { redeemedCodes, error ->
             if (error != null) {
-                Log.d("RewardFragment", "Redeemed codes loaded successfully")
+                // Fix the incorrect log message
+                Log.e("RewardFragment", "Error loading redeemed codes: $error")
                 Toast.makeText(requireContext(), "Error loading redeemed codes: $error", Toast.LENGTH_SHORT).show()
             } else if (redeemedCodes != null) {
                 Log.d("RewardFragment", "Redeemed codes loaded successfully")
+                redeemedCodesList.clear()
+                redeemedCodesList.addAll(redeemedCodes)
                 redeemedCodesAdapter.updateData(redeemedCodes)
             }
         }

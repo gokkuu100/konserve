@@ -294,8 +294,11 @@ class SupabaseManager(context: Context) {
     // Get Current User
     suspend fun getCurrentUser(): String? {
         return try {
-            client.auth.currentUserOrNull()?.id
+            val currentUser = client.auth.currentUserOrNull()
+            Log.d("Supabase", "Current User: ${currentUser}")  // Log to check the current user
+            currentUser?.id
         } catch (e: Exception) {
+            Log.e("Supabase", "Error fetching current user: ${e.localizedMessage}")
             null
         }
     }
@@ -448,9 +451,8 @@ class SupabaseManager(context: Context) {
             )
 
             withContext(Dispatchers.IO) {
-                client.postgrest["redeemed_codes"].insert(
-                    json.encodeToString(RedeemedCode.serializer(), redeemedCode)  // ✅ Serialize explicitly
-                )
+                client.postgrest["redeemed_codes"]
+                    .insert(redeemedCode)  // ✅ No need for manual JSON conversion
             }
 
             onComplete(true, null)

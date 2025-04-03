@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,13 +12,11 @@ import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
+import com.example.konserve.models.User
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.storage.upload
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 
 class ProfileFragment : Fragment() {
 
@@ -32,6 +31,8 @@ class ProfileFragment : Fragment() {
     private lateinit var addressEditText: EditText
     private lateinit var saveButton: Button
     private lateinit var backButton: ImageView
+
+    private var currentUser: User? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -55,6 +56,7 @@ class ProfileFragment : Fragment() {
 
         CoroutineScope(Dispatchers.IO).launch {
             val userId = supabaseManager.getCurrentUser()
+            Log.d("ProfileFragment", "Fetched user ID: $userId")
             userId?.let { loadUserData(it) }
         }
 
@@ -90,38 +92,50 @@ class ProfileFragment : Fragment() {
         supabaseManager.getUserData(userId) { user, error ->
             CoroutineScope(Dispatchers.Main).launch {
                 if (user != null) {
+                    currentUser = user
+                    Log.d("ProfileFragment", "User loaded: ${user.full_name}")
+
                     userNameEditText.setText(user.full_name ?: "")
                     phoneEditText.setText(user.phone ?: "")
                     genderEditText.setText(user.gender ?: "")
                     addressEditText.setText(user.address ?: "")
-                    loadProfileImage(user.imageUrl)
+
+                    if (user.imageUrl.isNotEmpty()) {
+                        loadProfileImage(user.imageUrl)
+                    }
                 } else {
+                    Log.e("ProfileFragment", "Error: $error")
                     Toast.makeText(requireContext(), error ?: "Error loading data", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    private suspend fun loadProfileImage(userId: String) {
-        val imageUrl = "https://your-storage-url/profile-images/$userId.jpg"
-        withContext(Dispatchers.Main) {
-            Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
-        }
+    private fun loadProfileImage(imageUrl: String) {
+        Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
     }
 
     private suspend fun saveUserData(userId: String) {
-        val updatedData = mapOf(
-            "full_name" to userNameEditText.text.toString(),
-            "phone" to phoneEditText.text.toString(),
-            "gender" to genderEditText.text.toString(),
-            "address" to addressEditText.text.toString()
-        )
+        val updatedUser = currentUser?.copy(
+            full_name = userNameEditText.text.toString(),
+            phone = phoneEditText.text.toString(),
+            gender = genderEditText.text.toString(),
+            address = addressEditText.text.toString()
+        ) ?: return
 
-        supabaseManager.client.postgrest["users"].update(updatedData) { filter { eq("user_id", userId) } }
+        try {
+            supabaseManager.client.postgrest["users"].update(updatedUser) { filter { eq("user_id", userId) } }
 
-        withContext(Dispatchers.Main) {
-            Toast.makeText(requireContext(), "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(requireContext(), "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+            }
+
             uploadProfileImage(userId)
+
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(requireContext(), "Failed to update profile: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -130,12 +144,21 @@ class ProfileFragment : Fragment() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val inputStream = requireContext().contentResolver.openInputStream(uri)
-                    val byteArray = inputStream!!.readBytes() // Convert InputStream to ByteArray
+                    val byteArray = inputStream!!.readBytes()
+                    val path = "profile-images/$userId.jpg"
+
                     supabaseManager.client.storage
                         .from("profile-images")
-                        .upload("$userId.jpg", byteArray)
+                        .upload(path, byteArray)
+
+                    val imageUrl = "https://your-storage-url/$path"
+
+                    supabaseManager.client.postgrest["users"].update(
+                        mapOf("imageUrl" to imageUrl)
+                    ) { filter { eq("user_id", userId) } }
 
                     withContext(Dispatchers.Main) {
+                        Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
                         Toast.makeText(requireContext(), "Profile image uploaded successfully!", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {

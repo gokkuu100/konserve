@@ -2,6 +2,7 @@ package com.example.konserve
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +13,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.DiffUtil
 import com.bumptech.glide.Glide
+import com.example.konserve.ChatAdapter.Companion
+import com.example.konserve.ChatAdapter.Companion.formatTimestamp
 import com.example.konserve.models.Report
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,12 +67,6 @@ class HomeFragment : Fragment() {
         return view
     }
 
-    private fun formatDate(timestamp: Instant): String {
-        val date = Date.from(timestamp) // Convert Instant to Date
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneId.systemDefault()) // Use system's timezone
-        return formatter.format(timestamp)
-    }
 
     private fun setupRecyclerView() {
         reportsAdapter = ReportsAdapter(object : ReportClickListener {
@@ -95,6 +92,7 @@ class HomeFragment : Fragment() {
                 progressBar.visibility = View.GONE
 
                 if (error != null) {
+                    Log.e("HomeFragment", "Error retrieving reports, $error")
                     showError("Error fetching reports: $error")
                     return@fetchReports
                 }
@@ -114,7 +112,7 @@ class HomeFragment : Fragment() {
     private fun setupFeaturedReport(report: Report) {
         featuredReportTitle.text = report.title
         featuredReportAuthor.text = "By " + (report.author ?: "Unknown Author")
-        featuredReportDate.text = formatDate(report.date)
+        featuredReportDate.text = formatTimestamp(report.date)
 
         Glide.with(requireContext())
             .load(report.imageUrl)
@@ -129,14 +127,22 @@ class HomeFragment : Fragment() {
 
     private fun navigateToReportDetail(report: Report) {
         val intent = Intent(requireContext(), ReportDetailedActivity::class.java).apply {
-            putExtra("REPORT_ID", report.id)
+            putExtra("REPORT_ID", report.id.toString())
         }
         startActivity(intent)
     }
 
-    private fun formatDate(date: Date): String {
-        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-        return formatter.format(date)
+    fun formatTimestamp(timestamp: String): String {
+        return try {
+            val correctedTimestamp = timestamp.replace(" ", "T").substringBefore("+") + "Z"
+
+            val instant = Instant.parse(correctedTimestamp)
+            val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+            val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")
+            zonedDateTime.format(formatter)
+        } catch (e: Exception) {
+            "Invalid Date"
+        }
     }
 
     private fun showMenu(anchorView: View) {
@@ -229,7 +235,7 @@ class ReportsAdapter(private val clickListener: ReportClickListener) :
         fun bind(report: Report, clickListener: ReportClickListener) {
             titleView.text = report.title
             authorView.text = "By " + (report.author ?: "Unknown Author")
-            dateView.text =  formatDate(Date.from(report.date))
+            dateView.text =  formatTimestamp(report.date)
 
             Glide.with(itemView.context)
                 .load(report.imageUrl)

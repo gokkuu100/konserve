@@ -7,12 +7,16 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
+import com.example.konserve.models.Report
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 class ReportDetailedActivity : AppCompatActivity() {
@@ -50,38 +54,41 @@ class ReportDetailedActivity : AppCompatActivity() {
         // Get report ID from intent
         val reportId = intent.getStringExtra("REPORT_ID")
 
-        if (reportId != null) {
-            loadReportDetails(reportId)
+        if (!reportId.isNullOrBlank()) {
+            try {
+                val reportIdInt = reportId.toInt()
+                loadReportDetails(reportIdInt)
+            } catch (e: NumberFormatException) {
+                Toast.makeText(this, "Invalid Report ID", Toast.LENGTH_SHORT).show()
+                finish()
+            }
         } else {
             finish()
         }
     }
 
-    private fun loadReportDetails(reportId: String) {
+    private fun loadReportDetails(reportId: Int) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    supabaseManager.client.postgrest["reports"]
+                    supabaseManager.client.postgrest.from("reports")
                         .select {
-                            filter { eq("id", reportId) }
+                            filter { eq("id", reportId.toInt()) }
                         }
-                        .decodeSingle<Map<String, Any>>()
+                        .decodeSingle<Report>()
                 }
 
                 withContext(Dispatchers.Main) {
-                    reportTitle.text = response["title"] as? String ?: ""
-                    reportAuthor.text = "By " + (response["author"] as? String ?: "Unknown Author")
-                    reportDate.text = formatDate(response["date"] as? String ?: "")
-                    reportDescription.text = response["description"] as? String ?: ""
+                    reportTitle.text = response.title
+                    reportAuthor.text = "By " + (response.author ?: "Unknown Author")
+                    reportDate.text = formatDate(response.date)
+                    reportDescription.text = response.description
 
-                    val imageUrl = response["imageUrl"] as? String
-                    imageUrl?.let {
-                        Glide.with(this@ReportDetailedActivity)
-                            .load(it)
-                            .placeholder(R.drawable.placeholder_image)
-                            .error(R.drawable.error_image)
-                            .into(reportImage)
-                    }
+                    Glide.with(this@ReportDetailedActivity)
+                        .load(response.imageUrl)
+                        .placeholder(R.drawable.placeholder_image)
+                        .error(R.drawable.error_image)
+                        .into(reportImage)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -93,10 +100,11 @@ class ReportDetailedActivity : AppCompatActivity() {
 
     private fun formatDate(dateString: String): String {
         return try {
-            val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
-            val outputFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault())
-            val date = inputFormat.parse(dateString)
-            outputFormat.format(date ?: Date())
+            val correctedTimestamp = dateString.replace(" ", "T").substringBefore("+") + "Z"
+            val instant = Instant.parse(correctedTimestamp)
+            val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+            val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", Locale.getDefault())
+            zonedDateTime.format(formatter)
         } catch (e: Exception) {
             "Unknown Date"
         }
