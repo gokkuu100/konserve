@@ -94,14 +94,15 @@ class SupabaseManager(context: Context) {
     val client: SupabaseClient = createSupabaseClient(
         supabaseUrl = supabaseUrl,
         supabaseKey = supabaseKey
-
     ) {
-        install(Auth)
+        install(Auth) {
+            // Add this configuration to persist session
+            autoSaveToStorage = true
+            autoLoadFromStorage = true
+        }
         install(Postgrest)
         install(Storage)
         install(Realtime)
-
-
     }
 
     private lateinit var oneTapClient: SignInClient
@@ -294,8 +295,14 @@ class SupabaseManager(context: Context) {
     // Get Current User
     suspend fun getCurrentUser(): String? {
         return try {
+            // First check if we need to refresh the session
+            val session = client.auth.currentSessionOrNull()
+            if (session != null && session.expiresAt.toEpochMilliseconds() < System.currentTimeMillis()) {
+                client.auth.refreshCurrentSession()
+            }
+            
             val currentUser = client.auth.currentUserOrNull()
-            Log.d("Supabase", "Current User: ${currentUser}")  // Log to check the current user
+            Log.d("Supabase", "Current User: ${currentUser}")
             currentUser?.id
         } catch (e: Exception) {
             Log.e("Supabase", "Error fetching current user: ${e.localizedMessage}")
@@ -310,7 +317,7 @@ class SupabaseManager(context: Context) {
                 client.postgrest["users"]
                     .select {
                         filter {
-                            eq("user_id", userId)
+                            eq("id", userId)
                         }
                     }
                     .decodeSingle<User>()
@@ -470,6 +477,27 @@ class SupabaseManager(context: Context) {
             onComplete(true, null)
         } catch (e: Exception) {
             onComplete(false, e.localizedMessage ?: "Logout failed")
+        }
+    }
+
+    // Add a function to initialize and refresh the session
+    suspend fun initializeSession(context: Context) {
+        try {
+            // Check if a session exists and refresh if needed
+            val session = client.auth.currentSessionOrNull()
+            if (session != null) {
+                // Session exists, but we need to ensure it's valid
+                if (session.expiresAt.toEpochMilliseconds() < System.currentTimeMillis()) {
+                    client.auth.refreshCurrentSession()
+                    Log.d("SupabaseManager", "Session refreshed successfully")
+                } else {
+                    Log.d("SupabaseManager", "Valid session found")
+                }
+            } else {
+                Log.d("SupabaseManager", "No existing session found")
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseManager", "Error initializing session: ${e.message}")
         }
     }
 
