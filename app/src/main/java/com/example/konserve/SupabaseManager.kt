@@ -17,14 +17,17 @@ import android.icu.util.TimeUnit
 import android.net.Uri
 import android.util.Log
 import android.util.Patterns
+import com.example.konserve.models.Feedback
 import com.example.konserve.models.RedeemedCode
 import com.example.konserve.models.Report
+import com.example.konserve.models.ReportCase
 import com.example.konserve.models.User
 import com.example.konserve.models.UserPoints
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.storage.upload
 import io.ktor.client.HttpClient
@@ -38,6 +41,7 @@ import java.io.FileOutputStream
 import kotlinx.coroutines.tasks.await
 import io.ktor.client.plugins.logging.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.time.format.DateTimeFormatter
@@ -294,30 +298,38 @@ class SupabaseManager(context: Context) {
 
     // Get Current User
     suspend fun getCurrentUser(): String? {
-        return try {
-            // First check if we need to refresh the session
-            val session = client.auth.currentSessionOrNull()
+        try {
+            // Wait until session is loaded from storage
+            var session = client.auth.currentSessionOrNull()
+            var retries = 5
+            while (session == null && retries > 0) {
+                delay(300L)
+                session = client.auth.currentSessionOrNull()
+                retries--
+            }
+
             if (session != null && session.expiresAt.toEpochMilliseconds() < System.currentTimeMillis()) {
                 client.auth.refreshCurrentSession()
             }
-            
+
             val currentUser = client.auth.currentUserOrNull()
             Log.d("Supabase", "Current User: ${currentUser}")
-            currentUser?.id
+            return currentUser?.id
         } catch (e: Exception) {
             Log.e("Supabase", "Error fetching current user: ${e.localizedMessage}")
-            null
+            return null
         }
     }
+
 
     // Get User Data
     suspend fun getUserData(userId: String, onComplete: (User?, String?) -> Unit) {
         try {
             val response = withContext(Dispatchers.IO) {
                 client.postgrest["users"]
-                    .select {
+                    .select(columns = Columns.ALL) {
                         filter {
-                            eq("id", userId)
+                            eq("user_id", userId)
                         }
                     }
                     .decodeSingle<User>()
@@ -334,14 +346,14 @@ class SupabaseManager(context: Context) {
             FileOutputStream(tempFile).use { it.write(fileBytes) }  // Write ByteArray to file
 
             withContext(Dispatchers.IO) {
-                client.storage.from("your_bucket_name").upload(
+                client.storage.from("reportcaseimages").upload(
                     path = fileName,
                     file = tempFile  // Pass the File object instead of ByteArray
                 )
             }
 
             // Construct the public URL manually
-            val bucketName = "your_bucket_name"
+            val bucketName = "reportcaseimages"
             val supabaseUrl = client.supabaseUrl
             "$supabaseUrl/storage/v1/object/public/$bucketName/$fileName"
         } catch (e: Exception) {
@@ -350,13 +362,47 @@ class SupabaseManager(context: Context) {
         }
     }
 
+    suspend fun uploadProfilePhoto(context: Context, userId: String, fileBytes: ByteArray): String? {
+        return try {
+            val fileName = "$userId.jpg"
+            val bucketName = "profileimages"
+            val path = "$bucketName/$fileName"
+
+            val tempFile = File(context.cacheDir, fileName)
+            FileOutputStream(tempFile).use { it.write(fileBytes) }
+
+            withContext(Dispatchers.IO) {
+                client.storage.from(bucketName).upload(path, tempFile)
+            }
+
+            // Construct public URL
+            val supabaseUrl = client.supabaseUrl
+            "$supabaseUrl/storage/v1/object/public/$path"
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     // Save Report to Supabase Database
-    suspend fun saveReport(reportData: Map<String, Any>): Boolean {
+    suspend fun saveReportCase(reportCase: ReportCase): Boolean {
         return try {
             withContext(Dispatchers.IO) {
-                client.postgrest["reports"].insert(reportData)
+                client.postgrest["report_case"].insert(reportCase)
             }
-            true  // If no exception, insertion was successful
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun saveFeedback(feedback: Feedback): Boolean {
+        return try {
+            withContext(Dispatchers.IO) {
+                client.postgrest["feedback"].insert(feedback)
+            }
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -500,5 +546,4 @@ class SupabaseManager(context: Context) {
             Log.e("SupabaseManager", "Error initializing session: ${e.message}")
         }
     }
-
 }

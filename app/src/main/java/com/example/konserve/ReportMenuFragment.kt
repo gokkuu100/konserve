@@ -15,11 +15,14 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.example.konserve.models.ReportCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 class ReportMenuFragment : Fragment() {
@@ -141,14 +144,14 @@ class ReportMenuFragment : Fragment() {
                 ) // Pass file name and byte array
                 if (imageUrl != null) {
                     val userId = supabaseManager.getCurrentUser()
-                    val reportData = mapOf(
-                        "description" to description,
-                        "location" to location,
-                        "imageUrl" to imageUrl,
-                        "userId" to (userId ?: "Unknown"),
-                        "timestamp" to System.currentTimeMillis()
+                    val reportData = ReportCase(
+                        description = description,
+                        location = location,
+                        imageUrl = imageUrl,
+                        user_id = userId ?: "Unknown",
+                        timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
                     )
-                    val success = supabaseManager.saveReport(reportData)
+                    val success = supabaseManager.saveReportCase(reportData)
 
                     withContext(Dispatchers.Main) {
                         submitButton.isEnabled = true

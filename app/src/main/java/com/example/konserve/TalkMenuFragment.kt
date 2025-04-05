@@ -6,10 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
+import com.example.konserve.models.Feedback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 class TalkMenuFragment : Fragment() {
     private lateinit var backButton: ImageView
@@ -65,13 +68,13 @@ class TalkMenuFragment : Fragment() {
                 return@launch
             }
 
-            val feedbackData = mapOf(
-                "feedback" to feedback,
-                "user_id" to userId,
-                "timestamp" to System.currentTimeMillis()
+            val feedbackData = Feedback(
+                feedback = feedback,
+                user_id = userId,
+                timestamp =  DateTimeFormatter.ISO_INSTANT.format(Instant.now())
             )
 
-            val success = supabaseManager.saveReport(feedbackData)
+            val success = supabaseManager.saveFeedback(feedbackData)
 
             withContext(Dispatchers.Main) {
                 submitButton.isEnabled = true

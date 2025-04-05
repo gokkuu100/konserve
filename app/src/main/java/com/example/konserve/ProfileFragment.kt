@@ -55,9 +55,13 @@ class ProfileFragment : Fragment() {
         backButton = view.findViewById(R.id.backButton)
 
         CoroutineScope(Dispatchers.IO).launch {
-            val userId = supabaseManager.getCurrentUser()
-            Log.d("ProfileFragment", "Fetched user ID: $userId")
-            userId?.let { loadUserData(it) }
+            var userId: String? = null
+            repeat(5) { attempt ->
+                userId = supabaseManager.getCurrentUser()
+                if (userId != null) return@launch loadUserData(userId!!)
+                delay(500L) // wait half a second before retrying
+            }
+            Log.e("ProfileFragment", "User ID is still null after retries")
         }
 
         setFieldsEditable(false)
@@ -100,7 +104,7 @@ class ProfileFragment : Fragment() {
                     genderEditText.setText(user.gender ?: "")
                     addressEditText.setText(user.address ?: "")
 
-                    if (user.imageUrl.isNotEmpty()) {
+                    if (!user.imageUrl.isNullOrEmpty()) {
                         loadProfileImage(user.imageUrl)
                     }
                 } else {
@@ -145,25 +149,31 @@ class ProfileFragment : Fragment() {
                 try {
                     val inputStream = requireContext().contentResolver.openInputStream(uri)
                     val byteArray = inputStream!!.readBytes()
-                    val path = "profile-images/$userId.jpg"
 
-                    supabaseManager.client.storage
-                        .from("profile-images")
-                        .upload(path, byteArray)
+                    // Use SupabaseManager to upload
+                    val imageUrl = supabaseManager.uploadProfilePhoto(requireContext(), userId, byteArray)
 
-                    val imageUrl = "https://your-storage-url/$path"
+                    if (imageUrl != null) {
+                        // Update user's profile image URL in database
+                        supabaseManager.client.postgrest["users"].update(
+                            mapOf("imageUrl" to imageUrl)
+                        ) {
+                            filter { eq("user_id", userId) }
+                        }
 
-                    supabaseManager.client.postgrest["users"].update(
-                        mapOf("imageUrl" to imageUrl)
-                    ) { filter { eq("user_id", userId) } }
-
-                    withContext(Dispatchers.Main) {
-                        Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
-                        Toast.makeText(requireContext(), "Profile image uploaded successfully!", Toast.LENGTH_SHORT).show()
+                        withContext(Dispatchers.Main) {
+                            Glide.with(this@ProfileFragment).load(imageUrl).into(profileImage)
+                            Toast.makeText(requireContext(), "Profile image uploaded successfully!", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(requireContext(), "Failed to upload image", Toast.LENGTH_SHORT).show()
+                        }
                     }
+
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(requireContext(), "Failed to upload profile image: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "Upload error: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
