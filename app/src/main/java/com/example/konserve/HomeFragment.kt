@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ListAdapter
@@ -194,10 +195,20 @@ class HomeFragment : Fragment() {
         }
         menuView.findViewById<View>(R.id.logoutMenuItem).setOnClickListener {
             popupWindow?.dismiss()
-            // Handle logout
-            // Implement Supabase logout if needed
-            startActivity(Intent(requireContext(), LoginActivity::class.java))
-            requireActivity().finish()
+
+            // Launch coroutine to call suspend logout function
+            lifecycleScope.launch {
+                supabaseManager.logoutUser() { success, error ->
+                    if (success) {
+                        // Logout successful, navigate to LoginActivity
+                        startActivity(Intent(requireContext(), LoginActivity::class.java))
+                        requireActivity().finish()
+                    } else {
+                        // Optionally show error to user
+                        Toast.makeText(requireContext(), "Logout failed: $error", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
         }
         // Show popup
         popupWindow?.showAsDropDown(anchorView)

@@ -525,25 +525,4 @@ class SupabaseManager(context: Context) {
             onComplete(false, e.localizedMessage ?: "Logout failed")
         }
     }
-
-    // Add a function to initialize and refresh the session
-    suspend fun initializeSession(context: Context) {
-        try {
-            // Check if a session exists and refresh if needed
-            val session = client.auth.currentSessionOrNull()
-            if (session != null) {
-                // Session exists, but we need to ensure it's valid
-                if (session.expiresAt.toEpochMilliseconds() < System.currentTimeMillis()) {
-                    client.auth.refreshCurrentSession()
-                    Log.d("SupabaseManager", "Session refreshed successfully")
-                } else {
-                    Log.d("SupabaseManager", "Valid session found")
-                }
-            } else {
-                Log.d("SupabaseManager", "No existing session found")
-            }
-        } catch (e: Exception) {
-            Log.e("SupabaseManager", "Error initializing session: ${e.message}")
-        }
-    }
 }
