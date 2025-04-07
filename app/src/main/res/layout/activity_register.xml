@@ -161,6 +161,20 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Google Sign-Up Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/googleSignUpButton"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:text="Sign up with Google"
+        android:backgroundTint="@android:color/holo_blue_dark"
+        android:textColor="@android:color/white"
+        android:layout_marginTop="10dp"
+        android:layout_marginHorizontal="30dp"
+        app:layout_constraintTop_toBottomOf="@id/registerButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/signinredirect"
         android:layout_width="wrap_content"
@@ -172,8 +186,8 @@
         android:textColor="@color/black"
         android:textSize="18sp"
         android:textStyle="italic"
-        app:layout_constraintStart_toStartOf="@id/registerButton"
-        app:layout_constraintTop_toBottomOf="@id/registerButton" />
+        app:layout_constraintStart_toStartOf="@id/googleSignUpButton"
+        app:layout_constraintTop_toBottomOf="@id/googleSignUpButton" />
 
 
 

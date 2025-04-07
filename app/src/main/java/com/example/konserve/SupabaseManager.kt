@@ -27,6 +27,7 @@ import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.storage.upload
@@ -146,8 +147,13 @@ class SupabaseManager(context: Context) {
 
     suspend fun handleGoogleSignInResult(idToken: String, onComplete: (Boolean, String?) -> Unit) {
         try {
+            Log.d("GoogleAuth", "Processing Google Sign-In with token")
+
+            val googleIdToken = googleId
+            
             // Sign in to Supabase with Google token
-            val session = client.auth.signInWith(Google) {
+            val session = client.auth.signInWith(IDToken) {
+                this.idToken = idToken
             }
 
             // Check if user exists in your users table
@@ -163,30 +169,41 @@ class SupabaseManager(context: Context) {
                             }
                         }
                         .decodeSingle<Map<String, Any>>()
+                    
+                    // User exists, just return success
+                    Log.d("GoogleAuth", "User already exists in database")
+                    onComplete(true, null)
+                    
                 } catch (e: Exception) {
                     // User doesn't exist in your users table, create a new entry
+                    Log.d("GoogleAuth", "Creating new user in database")
                     val email = user.email ?: ""
-                    val fullName = user.userMetadata?.get("full_name") as? String ?: ""
+                    val fullName = user.userMetadata?.get("full_name") as? String 
+                        ?: user.userMetadata?.get("name") as? String 
+                        ?: email.substringBefore("@")  // Fallback to email username
 
-                    val userData = mapOf(
-                        "user_id" to userId,
-                        "email" to email,
-                        "full_name" to fullName,
-                        "created_at" to System.currentTimeMillis(),
-                        "points" to 0
+                    // Create a User object
+                    val newUser = User(
+                        user_id = userId,
+                        full_name = fullName,
+                        email = email,
+                        created_at = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                        reward_points = 0
                     )
 
                     withContext(Dispatchers.IO) {
-                        client.postgrest["users"].insert(userData)
+                        client.postgrest["users"].insert(newUser)
+                        Log.d("GoogleAuth", "New user inserted: $fullName, $email")
                     }
-                }
 
-                onComplete(true, null)
+                    onComplete(true, null)
+                }
             } else {
+                Log.e("GoogleAuth", "Failed to get user ID")
                 onComplete(false, "Failed to get user ID")
             }
         } catch (e: Exception) {
-            Log.e("GoogleAuth", "Supabase Google Sign-In failed: ${e.message}")
+            Log.e("GoogleAuth", "Supabase Google Sign-In failed: ${e.message}", e)
             onComplete(false, "Authentication failed: ${e.message}")
         }
     }
