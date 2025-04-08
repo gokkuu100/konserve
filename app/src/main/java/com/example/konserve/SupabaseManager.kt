@@ -149,7 +149,7 @@ class SupabaseManager(context: Context) {
         try {
             Log.d("GoogleAuth", "Processing Google Sign-In with token")
 
-            val googleIdToken = googleId
+
             
             // Sign in to Supabase with Google token
             val session = client.auth.signInWith(IDToken) {
