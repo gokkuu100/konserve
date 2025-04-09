@@ -32,6 +32,8 @@ import java.time.format.DateTimeFormatter
 
 class ChatFragment : Fragment() {
 
+
+
     private lateinit var messageEditText: EditText
     private lateinit var sendButton: Button
     private lateinit var chatRecyclerView: RecyclerView
